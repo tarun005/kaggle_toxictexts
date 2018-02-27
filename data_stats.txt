@@ -1,0 +1,19 @@
+Train Data
+--------------------------
+Dataset Size: 1276568
+
+Toxic -> 15294 (9.59%)
+Severe_toxic -> 1595 (1%)
+Obscene -> 8449 (5.3%)
+Threat -> 478 (0.3%)
+Insult -> 7877 (4.94%)
+
+Data Preprocessing
+--------------------------
+Have a zero row at top of embedding matrix for unknown words (UNK)
+Extract only words from the comments. Assumption is that punctuations and expressions will not matter.
+Any other characters not in wordset replace with an unknown string
+
+
+
+
