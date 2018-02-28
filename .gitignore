@@ -1,4 +1,5 @@
 __pycache__
-*.ipynb
+*ipynb*
 *.csv
+*temp*
 
