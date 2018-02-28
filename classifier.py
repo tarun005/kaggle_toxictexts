@@ -4,152 +4,65 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 import itertools
 import os , sys , time
+from model import RNNModel , Config
+from data_utils import get_batches, get_words
+from data_utils import Vocab
 
-from data_utils import *
+def accuracy(labels , predictions , classwise=True):
 
-class Config():
-
-	embed_size = 60
-	hidden_size = 100
-	label_size = 5
-	num_epochs = 30
-	batch_size = 1
-	early_stopping = 4
-	lr = 0.001
-	l2 = 0.01
-
-	model_name = 'model_RNN'
-
-class RNNModel():
-
-	def load_data(self , datafile):
-
-		dataset = pd.read_csv('train.csv')
-		text = 'comment_text'
-		self.X = dataset[text].values
-
-		if self.test_mode:
-			self.X_test = self.X
-			return
-		
-		labels = ['toxic', 'severe_toxic', 'obscene' , 'threat', 'insult', 'identity_hate']
-		self.y = dataset[labels].values
-		self.X_train , self.X_val , self.y_train , self.y_val = train_test_split(self.X , self.y, test_size=0.1, random_state=1234)
-
-		## Build the vocabulary using the train data.
-		self.vocab = Vocab()
-		train_sents = [get_words(line) for line in self.X_train]
-		all_words = list(itertools.chain.from_iterable(train_sents))
-		unique_words , n_occs = np.unique(all_words , return_counts=True) ## Get unique tokens
-		words_freq_dictionary = dict(zip(unique_words , n_occs))
-		self.vocab.construct(words_freq_dictionary)
-
-	def define_weights(self):
-		embed_size = self.config.embed_size
-		hidden_size = self.config.hidden_size
-		label_size = self.config.label_size
-		vocab_size = len(self.vocab)
-
-		## Declare weights and placeholders
-		with tf.variable_scope("Embeddings" , initializer = tf.contrib.layers.xavier_initializer) as scope:
-			embedding = tf.get_variable("Embeds" , [vocab_size , embed_size])
-
-		with tf.variable_scope("Output" , initializer = tf.contrib.layers.xavier_initializer) as scope:
-			W_o = tf.get_variable("Weight" , [hidden_size , label_size])
-			b_o = tf.get_variable("Bias" , [label_size])
-			self.wo_l2loss = tf.nn.l2_loss(W_o)
-
-		## Define the placeholders
-		self.input_placeholder = tf.placeholder(tf.int32 , [None , None])
-		self.label_placeholder = tf.placeholder(tf.int32 , [None , label_size])
-		self.sequence_length_placeholder = tf.placeholder(tf.int32 , [None])
-
-		self.cellstate_placeholder = tf.placeholder(tf.float32 , [None , hidden_size])
-		self.hiddenstate_placeholder = tf.placeholder(tf.float32 , [None , hidden_size])
-
-	def input_embeddings(self):
-
-		with tf.variable_scope("Embeddings"):
-			embedding = tf.get_variable("Embeds")
-
-		input_vectors = tf.nn.embedding_lookup(embedding , self.input_placeholder)
-		num_splits = input_vectors.get_shape().as_list()[1]
-		input_series = [tf.squeeze(input_step_mat,axis=1) for input_step_mat in tf.split(input_vectors , num_splits, axis=1)]
-
-		return input_series
-
-	def LSTM_module(self , input_series):
-
-		state_tuple = tf.contrib.rnn.LSTMStateTuple(self.cellstate_placeholder , self.hiddenstate_placeholder)
-		LSTMcell = tf.contrib.rnn.BasicLSTMCell (num_units = self.config.hidden_size , state_is_tuple=True)
-		hidden_states , last_state = tf.nn.static_rnn(LSTMcell , input_series ,
-														   state_tuple,	sequence_length=self.sequence_length_placeholder)
-		last_cellstate , last_hiddenstate = last_state
-
-		with tf.variable_scope("Output"):
-			W_o = tf.get_variable("Weight")
-			b_o = tf.get_variable("Bias")
-
-			output = tf.matmul(W_o , last_hiddenstate) + b_o
-
-		return output
-
-	def calculate_loss(self , output):
-
-		labels = self.label_placeholder
-
-		log_loss = tf.reduce_mean(tf.multiply(labels , tf.log_sigmoid(output)) +
-												 tf.multiply((1-labels) , tf.log_sigmoid(-1*output)))
-		l2_loss = 0
-		for weights in tf.trainable_variables():
-			if ("Bias" not in weights.name) and ("Embeddings" not in weights.name): 
-				l2_loss += self.config.l2_loss(weights)
-
-		loss = log_loss #+ l2_loss
-
-		return loss
-
-	def training_operation(self , loss):
-		self.train_op = tf.train.AdamOptimizer(learning_rate=self.config.lr).minimize(loss)
-
-	def build_feeddict(self, X, seq_len, y=None):
-
-		X_input = []
-
-		for sent in X:
-			sent_tokens = []
-			for word in sent:
-				sent_tokens.append(self.vocab.encode(word))
-			X_input.append(sent_tokens)
-
-		X_input = np.array(X_input)
-		assert(X_input.shape[0] == self.config.batch_size)
-
-		y_input = y
-		seq_len_input = np.reshape(np.array(seq_len) , [-1])
-		assert(len(seq_len_input) == self.config.batch_size)
-
-		feed = {self.input_placeholder : X_input,
-				self.sequence_length_placeholder : seq_len_input,
-				self.label_placeholder : y_input,
-				self.cellstate_placeholder : np.zeros([self.config.batch_size , self.config.hidden_size]),
-				self.hiddenstate_placeholder : np.zeros([self.config.batch_size , self.config.hidden_size]),
-				}
-
-		return feed
-
-	def __init__(self , config , datafile , test=False):
-		self.config = config
-		self.test_mode = test
-		self.load_data(datafile)
-		self.define_weights()
-		input_series = self.input_embeddings()
-		output = self.LSTM_module(input_series)
-		loss = self.calculate_loss(output)
-		self.training_operation(loss)
+	if classwise:
+		class_wise_acc = np.mean(np.equal(labels , predictions) , axis=0, keepdims=True)
+		return class_wise_acc
+	else:
+		acc = np.mean(np.equal(labels , predictions))
+		return acc
 
 def run_epoch(sess , model, verbose=True):
 
+	epoch_train_pred = []
+	epoch_train_label = []
+	epoch_train_loss = []
+
+	epoch_val_pred = []
+	epoch_val_label = []
+	epoch_val_loss = []
+
+	step = 0
+
+	for train_X, train_seq_len, train_y in get_batches(model.X_train , model.y_train, model.config.batch_size):
+		feed = model.build_feeddict(train_X , train_seq_len, train_y) 
+		class_pred , batch_loss , _ = sess.run([model.pred , model.loss, model.train_op] , feed_dict=feed)
+		epoch_train_pred.append(class_pred)
+		epoch_train_label.append(train_y)
+		epoch_train_loss.append(batch_loss)
+
+		if verbose:
+			sys.stdout.write('\r{} / {} :    loss = {}'.format(step*self.config.batch_size, len(model.X_train), np.mean(epoch_train_loss)))
+			sys.stdout.flush()
+
+		step += 1
+
+	for val_X , val_seq_len, val_y in get_batches(model.X_val, model.y_val, model.config.batch_size):
+		feed = model.build_feeddict(val_X , val_seq_len, val_y)
+		val_preds , val_loss = sess.run([model.pred , model.loss] , feed_dict=feed)
+		epoch_val_pred.append(val_preds)
+		epoch_val_label.append(val_y)
+		epoch_val_loss.append(val_loss)
+
+
+	train_predictions = np.concatenate(epoch_train_pred , axis=0)
+	train_labels = np.concatenate(epoch_train_label , axis=0)
+	train_acc = accuracy(labels , predictions) 
+
+	val_predictions = np.concatenate(epoch_val_pred , axis=0)
+	val_labels = np.concatenate(epoch_val_label , axis=0)
+	val_acc = accuracy(labels , predictions) 
+
+	print("Training Accuracy: {}".format(train_acc))
+	print("Validation Accuracy: {}".format(val_acc))
+	print()
+
+	return epoch_train_loss, epoch_val_loss, train_acc , val_acc
 
 def train_RNNModel(filename):
 
@@ -158,20 +71,80 @@ def train_RNNModel(filename):
 	config = Config()
 	model = RNNModel(config , filename)
 
+	num_batches = int(len(model.X_train)/batch_size)
+	train_loss_history = np.zeros(model.config.num_epochs , model.config.num_batches)
+	val_loss_history = np.zeros_like(train_loss_history)
+	train_acc_history = np.zeros(model.config.num_epochs , model.config.label_size)
+	val_acc_history = np.zeros_lke(train_acc_history)
+
+	best_val_loss = np.float(inf)
+	best_epoch = 0
+
+	if not os.path.exists("./weights"):
+		os.makedirs("./weights")
+
+	with tf.Session() as sess:
+
+		init = tf.global_variables_initalizer()
+		sess.run(init)
+
+		for epoch in num_epochs:
+
+			epoch_train_loss, epoch_val_loss, epoch_train_acc, epoch_val_acc = run_epoch(sess , model)
+			train_acc_history[epoch , :] = epoch_train_acc
+			val_acc_history[epoch , :] = epoch_val_acc
+			train_loss_history[epoch , :] = np.array(epoch_train_loss)
+			val_loss_history[epoch , :] = np.array(epoch_val_loss)
+
+			val_loss = np.mean(epoch_val_loss)
+
+			if val_loss < best_val_loss:
+				best_val_loss = val_loss
+				best_epoch = epoch
+				saver = tf.train.Saver()
+				saver.save(sess , './weights/%s'%model.config.model_name)
+
+			if epoch - best_epoch > model.config.anneal_threshold: ## Anneal lr on no improvement in val loss
+				model.config.lr *= model.config.annealing_factor
+
+			if epoch - best_epoch > model.config.early_stopping: ## Stop on no improvement
+				print('Stopping due to early stopping')
+				break;
+
 
 	print()
 	print("#"*20)
 	print('Completed Training')
 	print('Training Time:{} minutes'.format((time.time()-start_time)/60))
 
+	plt.plot(np.mean(train_loss_history , axis=0) , linewidth=3 , label='Train')
+	plt.plot(np.mean(val_loss_history , axis=0) , linewidth=3 , label='Val')
+	plt.xlabel("Epoch Number")
+	plt.ylabel("Loss")
+	plt.title("Loss vs Epoch")
+	plt.legend()
+
 def test_RNNModel(filename):
 
+	test_data = pd.read_csv(filename)
+	test_idx = test_data.iloc[:,0].values
+
 	config = Config()
-	model = RNNModel(config , filename , test=True)
+	model = RNNModel(config , filename , test=True) ## Builds our model
+
+	with tf.Session() as sess:
+		saver = tf.train.import_meta_graph('./weights/%s.meta'%model.config.model_name)
+		saver.restore(sess , './weights/%s'%model.config.model_name)
+
+		X_test , test_seq_length = get_batches(model.X_test, y=None, batch_size=1)
+		feed = model.build_feeddict(X_test , test_seq_length)
+		predictions = sess.run([model.pred] , feed_dict=feed)
+
+	assert(len(test_idx) == len(predictions))
+
+	## Code to write the output submissions to a file
 
 if __name__ == "__main__":
 
 	train_RNNModel(filename = 'train.txt') ## Save the weights and model
-	test_RNNModel(filename = 'test.txt') ## Load the model and test on new inputs
-
-
+	# test_RNNModel(filename = 'test.txt') ## Load the model and test

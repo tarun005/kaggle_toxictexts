@@ -90,7 +90,7 @@ def get_batches(X, y=None , batch_size=1 , augment_method='pad' , common_size=10
 				len_batch = len(batch)
 				if len_batch < common_size:
 					all_words = batch + [unknown_string]*(fixed_len - len_batch)
-				elif:
+				else:
 					all_words = batch[:common_size]
 				modified_words.append(all_words)
 
