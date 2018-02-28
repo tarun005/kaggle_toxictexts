@@ -74,21 +74,20 @@ def get_batches(X, y=None , batch_size=1 , augment_method='pad' , common_size=10
 	X = X[sort_idx]
 	y = y[sort_idx]
 
-	if y is None:
-		get_labels = False
+	get_labels = [False if y is None else True][0]
 
 	X_data = []
 	y_data = []
 	seq_lengths = []
 
-	for idx in num_batches:
-		sents = np.reshape(X.loc[idx*batch_size:(idx+1)*batch_size] , [-1,1])
+	for idx in range(num_batches):
+		sents = np.reshape(X[idx*batch_size:(idx+1)*batch_size] , [-1,1])
 
 		if get_labels:
-			labels = y.loc[idx*batch_size:(idx+1)*batch_size , :]
+			labels = y[idx*batch_size:(idx+1)*batch_size , :]
 			y_data.append(labels)
 
-		batch_words = [get_words(sent) for sent in sents]
+		batch_words = [get_words(sent[0]) for sent in sents] ## Array to list
 		seq_lengths.append([len(batch) for batch in batch_words])
 		modified_words = []
 
@@ -144,7 +143,7 @@ class Config():
 	embed_size = 60
 	hidden_size = 100
 	label_size = 5
-	num_epochs = 30
+	max_epochs = 30
 	batch_size = 32
 	early_stopping = 5
 	anneal_threshold = 3

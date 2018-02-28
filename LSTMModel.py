@@ -12,6 +12,9 @@ class RNNModel():
 	def load_data(self , datafile):
 
 		dataset = pd.read_csv(datafile)
+		if self.debug:
+			dataset = dataset.iloc[:1000]
+			
 		text = 'comment_text'
 		self.X = dataset[text].values
 
@@ -96,8 +99,11 @@ class RNNModel():
 	def training_operation(self , loss):
 		self.train_op = tf.train.AdamOptimizer(learning_rate=self.config.lr).minimize(loss)
 
-	def __init__(self , config , datafile , test=False):
+	def __init__(self , config , datafile , debug=False, test=False):
 		self.config = config
+		if debug:
+			self.config.max_epochs = 1
+		self.debug = debug
 		self.test_mode = test
 		self.load_data(datafile)
 		self.define_weights()

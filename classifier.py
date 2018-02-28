@@ -3,8 +3,8 @@ import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
 import itertools
-import os , sys , time
-import LSTMModel as Model
+import os , time
+from LSTMModel import RNNModel as Model
 from data_utils import get_batches, get_words, Config, accuracy
 from data_utils import Vocab
 import importlib
@@ -50,9 +50,9 @@ def run_epoch(sess , model, verbose=True):
 	val_labels = np.concatenate(epoch_val_label , axis=0)
 	val_acc = accuracy(labels , predictions) 
 
-	print("Training Accuracy: {}".format(train_acc))
-	print("Validation Accuracy: {}".format(val_acc))
 	print()
+	print("Train Loss: {} \t Train Accuracy: {}".format(np.mean(epoch_train_loss) , train_acc))
+	print("Val Loss: {} \t Val Accuracy: {}".format(np.mean(epoch_val_loss) , val_acc))
 
 	return epoch_train_loss, epoch_val_loss, train_acc , val_acc
 
@@ -61,15 +61,15 @@ def train_model(filename):
 	start_time = time.time()
 
 	config = Config()
-	model = Model(config , filename)
+	model = Model(config , filename , debug=True)
 
-	num_batches = int(len(model.X_train)/batch_size)
-	train_loss_history = np.zeros(model.config.num_epochs , model.config.num_batches)
+	num_batches = int(len(model.X_train)/model.config.batch_size)
+	train_loss_history = np.zeros((model.config.max_epochs , num_batches))
 	val_loss_history = np.zeros_like(train_loss_history)
-	train_acc_history = np.zeros(model.config.num_epochs , model.config.label_size)
-	val_acc_history = np.zeros_lke(train_acc_history)
+	train_acc_history = np.zeros((model.config.max_epochs , model.config.label_size))
+	val_acc_history = np.zeros_like(train_acc_history)
 
-	best_val_loss = np.float(inf)
+	best_val_loss = np.float(np.inf)
 	best_epoch = 0
 
 	if not os.path.exists("./weights"):
@@ -77,10 +77,10 @@ def train_model(filename):
 
 	with tf.Session() as sess:
 
-		init = tf.global_variables_initalizer()
+		init = tf.global_variables_initializer()
 		sess.run(init)
 
-		for epoch in num_epochs:
+		for epoch in range(model.config.max_epochs):
 
 			epoch_train_loss, epoch_val_loss, epoch_train_acc, epoch_val_acc = run_epoch(sess , model)
 			train_acc_history[epoch , :] = epoch_train_acc
@@ -138,12 +138,11 @@ def test_model(filename):
 
 if __name__ == "__main__":
 
+	# config = Config()
 	# model_name = input("Enter the module name \n")
-	model_name = 'LSTMModel'
-	module = importlib.import_module(name = model_name)
-	Model = getattr(module , 'RNNModel')
-	model = Model(config=config , datafile='train.csv')
-	print(model.test_value)
+	# module = importlib.import_module(name = model_name)
+	# Model = getattr(module , 'RNNModel')
+	# model = Model(config=config , datafile='train.csv')
 
-	# train_model(filename = 'train.txt') ## Save the weights and model
-	# test_model(filename = 'test.txt') ## Load the model and test
+	train_model(filename = 'train.csv') ## Save the weights and model
+	# test_model(filename = 'test.csv') ## Load the model and test
