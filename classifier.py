@@ -4,18 +4,10 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 import itertools
 import os , sys , time
-from model import RNNModel , Config
-from data_utils import get_batches, get_words
+import LSTMModel as Model
+from data_utils import get_batches, get_words, Config, accuracy
 from data_utils import Vocab
-
-def accuracy(labels , predictions , classwise=True):
-
-	if classwise:
-		class_wise_acc = np.mean(np.equal(labels , predictions) , axis=0, keepdims=True)
-		return class_wise_acc
-	else:
-		acc = np.mean(np.equal(labels , predictions))
-		return acc
+import importlib
 
 def run_epoch(sess , model, verbose=True):
 
@@ -64,12 +56,12 @@ def run_epoch(sess , model, verbose=True):
 
 	return epoch_train_loss, epoch_val_loss, train_acc , val_acc
 
-def train_RNNModel(filename):
+def train_model(filename):
 
 	start_time = time.time()
 
 	config = Config()
-	model = RNNModel(config , filename)
+	model = Model(config , filename)
 
 	num_batches = int(len(model.X_train)/batch_size)
 	train_loss_history = np.zeros(model.config.num_epochs , model.config.num_batches)
@@ -111,7 +103,6 @@ def train_RNNModel(filename):
 				print('Stopping due to early stopping')
 				break;
 
-
 	print()
 	print("#"*20)
 	print('Completed Training')
@@ -123,14 +114,15 @@ def train_RNNModel(filename):
 	plt.ylabel("Loss")
 	plt.title("Loss vs Epoch")
 	plt.legend()
+	plt.savefig('Training_graph.png' , format='png')
 
-def test_RNNModel(filename):
+def test_model(filename):
 
 	test_data = pd.read_csv(filename)
 	test_idx = test_data.iloc[:,0].values
 
 	config = Config()
-	model = RNNModel(config , filename , test=True) ## Builds our model
+	model = Model(config , filename , test=True) ## Builds our model
 
 	with tf.Session() as sess:
 		saver = tf.train.import_meta_graph('./weights/%s.meta'%model.config.model_name)
@@ -146,5 +138,12 @@ def test_RNNModel(filename):
 
 if __name__ == "__main__":
 
-	train_RNNModel(filename = 'train.txt') ## Save the weights and model
-	# test_RNNModel(filename = 'test.txt') ## Load the model and test
+	# model_name = input("Enter the module name \n")
+	model_name = 'LSTMModel'
+	module = importlib.import_module(name = model_name)
+	Model = getattr(module , 'RNNModel')
+	model = Model(config=config , datafile='train.csv')
+	print(model.test_value)
+
+	# train_model(filename = 'train.txt') ## Save the weights and model
+	# test_model(filename = 'test.txt') ## Load the model and test

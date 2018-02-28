@@ -1,7 +1,6 @@
 from collections import defaultdict
 import re
 import numpy as np
-import pandas as pd
 
 unknown_string = 'UNNKKK'
 
@@ -21,24 +20,42 @@ class Vocab():
 		self.add_word(self.unknown , count=0)
 
 	def add_word(self ,word , count=1):
-		if word not in word_to_idx:
+		if word not in self.word_to_idx:
 			index = len(self.word_to_idx)
 			self.word_to_idx[word] = index
 			self.idx_to_word[index] = word
 		self.word_freq[word] += count
 
-	def construct(self, words_list , replace_digits=True):
-		for word,count in words_list.items():
+	def construct(self, words_list ,threshold=5, replace_digits=True):
+		for word in words_list:
 			if any([c.isdigit() for c in word]) and replace_digits:
 				word = self.unknown
-			self.add_word(word , count)
-		total_words = float(sum(self.word_freq.values()))
-		print('Total {} words with {} uniques'.format(total_words , len(self.word_freq)) )
+			self.add_word(word)
+		self.total_words = sum(self.word_freq.values())
+		self.trim_vocab(threshold)
+		print('Total {} words with {} uniques'.format(self.total_words , len(self.word_freq)) )
+
+		assert (len(self.word_to_idx) == len(self.idx_to_word))
+		assert(len(self.word_to_idx) == len(self.word_freq))
+
+	def trim_vocab(self , threshold):
+		self.idx_to_word = {}
+		temp_dict = dict(self.word_freq) ## Create a copy to avoid binding
+		for word , count in self.word_freq.items():
+			if count < threshold and word != unknown_string:
+				temp_dict[self.unknown] += temp_dict[word]
+				del self.word_to_idx[word]
+				del temp_dict[word]
+		self.word_freq = dict(temp_dict)
+
+		## Reindex the words.
+		self.word_to_idx = dict(zip(self.word_to_idx.keys() , range(len(self.word_to_idx))))
+		self.idx_to_word = {v:k for k,v in self.word_to_idx.items()}
 
 	def encode(self, word):
-		if word not in word_to_idx:
+		if word not in self.word_to_idx:
 			word = self.unknown
-		return word_to_idx[word]
+		return self.word_to_idx[word]
 
 	def decode(self , index):
 		return idx_to_word[index]
@@ -109,4 +126,34 @@ def get_batches(X, y=None , batch_size=1 , augment_method='pad' , common_size=10
 	if get_labels:
 		return X_data, seq_lengths , y_data
 	return X_data , seq_lengths
+
+
+def accuracy(labels , predictions , classwise=True):
+
+	if classwise:
+		class_wise_acc = np.mean(np.equal(labels , predictions) , axis=0, keepdims=True)
+		return class_wise_acc
+	else:
+		acc = np.mean(np.equal(labels , predictions))
+		return acc
+
+
+class Config():
+
+	min_word_freq = 5 ## Words with freq less than this are omitted from the vocabulary
+	embed_size = 60
+	hidden_size = 100
+	label_size = 5
+	num_epochs = 30
+	batch_size = 32
+	early_stopping = 5
+	anneal_threshold = 3
+	anneal_factor = 0.5
+	lr = 0.001
+	l2 = 0.01
+
+	model_name = 'model_RNN.weights'
+
+if __name__ == "__main__":
+	print('Import libraries. Not to be run separately.')
 
