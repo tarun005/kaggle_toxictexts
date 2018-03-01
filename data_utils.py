@@ -64,17 +64,17 @@ class Vocab():
 		return len(self.word_to_idx)
 
 
-def get_batches(X, y=None , batch_size=1 , augment_method='pad' , common_size=10):
+def get_batches(X, y=None , batch_size=1 ,shuffle=True, augment_method='pad' , common_size=10):
 
 	num_batches = int(len(X)/batch_size)
 	augment_method = augment_method.lower()
 
-	## Sort the entries in data with length of sentences to reduce computation time.
+	get_labels = False if y is None else True
+
+	# Sort the entries in data with length of sentences to reduce computation time.
 	sort_idx = [val[0] for val in sorted(enumerate(X) , key = lambda K : len(get_words(K[1])))]
 	X = X[sort_idx]
-	y = y[sort_idx]
-
-	get_labels = [False if y is None else True][0]
+	y = y[sort_idx] if get_labels else None
 
 	X_data = []
 	y_data = []
@@ -122,9 +122,9 @@ def get_batches(X, y=None , batch_size=1 , augment_method='pad' , common_size=10
 
 		X_data.append(modified_words)
 
-	r_idx = np.random.permutation(np.arange(len(X_data)))
-	assert(len(X_data) == len(y_data))
-	assert(len(seq_lengths) == len(y_data))
+	r_idx = np.random.permutation(np.arange(len(X_data))) if shuffle else np.arange(len(X_data))
+
+	assert(len(X_data) == len(seq_lengths))
 
 	X_data = [X_data[idx] for idx in r_idx]
 	seq_lengths = [seq_lengths[idx] for idx in r_idx]
@@ -134,8 +134,6 @@ def get_batches(X, y=None , batch_size=1 , augment_method='pad' , common_size=10
 
 	y_data = [y_data[idx] for idx in r_idx]
 	return X_data, seq_lengths, y_data
-	
-
 
 def accuracy(labels , predictions , classwise=True):
 
@@ -150,16 +148,16 @@ def accuracy(labels , predictions , classwise=True):
 class Config():
 
 	min_word_freq = 5 ## Words with freq less than this are omitted from the vocabulary
-	embed_size = 60
-	hidden_size = 64
+	embed_size = 50
+	hidden_size = 100
 	label_size = 6
 	max_epochs = 30
-	batch_size = 32
+	batch_size = 128
 	early_stopping = 5
 	anneal_threshold = 3
-	anneal_factor = 0.5
-	lr = 0.001
-	l2 = 0.01
+	annealing_factor = 0.5
+	lr = 5e-4
+	l2 = 0.001
 
 	model_name = 'model_RNN.weights'
 

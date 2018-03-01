@@ -43,17 +43,13 @@ def run_epoch(sess , model, iter_obj, val=False, verbose=True):
 
 	return epoch_loss, acc
 
-def train_model(filename):
-
-	start_time = time.time()
-
-	config = Config()
-	model = Model(config , filename , debug=False)
+def train_model(model):
 
 	train_num_batches = int(len(model.X_train)/model.config.batch_size)
 	train_loss_history = np.zeros((model.config.max_epochs , train_num_batches)) ## Store each batch separately.
 	
-	val_num_batches = int(len(model.X_val)/model.config.batch_size)
+	model.config.val_batchsize = model.config.batch_size ## Can be anything, typically greater than train batch size.
+	val_num_batches = int(len(model.X_val)/model.config.val_batchsize)
 	val_loss_history = np.zeros((model.config.max_epochs , val_num_batches))
 	
 	train_acc_history = np.zeros((model.config.max_epochs , model.config.label_size)) ## Store each class separately
@@ -76,12 +72,14 @@ def train_model(filename):
 			X_train , seq_len_train , y_train = get_batches(model.X_train , model.y_train, model.config.batch_size)
 			epoch_train_loss, epoch_train_acc = run_epoch(sess , model , zip(X_train,seq_len_train,y_train))
 			print()
-			print("Train Loss: {:.4f} \t Train Accuracy: {}".format(np.mean(epoch_train_loss) , epoch_train_acc))
+			print("Train Loss: {:.4f} \t Train Accuracy: {} \t Mean Acc: {:.5f}".format(np.mean(epoch_train_loss) ,
+																			 epoch_train_acc, np.mean(epoch_train_acc)))
 
 
-			X_val , seq_len_val , y_val = get_batches(model.X_val , model.y_val, model.config.batch_size)
+			X_val , seq_len_val , y_val = get_batches(model.X_val , model.y_val, model.config.val_batchsize)
 			epoch_val_loss, epoch_val_acc = run_epoch(sess , model , zip(X_val,seq_len_val,y_val) , val=True)
-			print("Val Loss: {:.4f} \t Val Accuracy: {}".format(np.mean(epoch_val_loss) , epoch_val_acc))
+			print("Val Loss: {:.4f} \t Val Accuracy: {} \t Mean Acc: {:.5f}".format(np.mean(epoch_val_loss) , 
+																			epoch_val_acc, np.mean(epoch_val_acc)))
 			print()
 
 			train_acc_history[epoch , :] = epoch_train_acc
@@ -99,15 +97,11 @@ def train_model(filename):
 
 			if epoch - best_epoch > model.config.anneal_threshold: ## Anneal lr on no improvement in val loss
 				model.config.lr *= model.config.annealing_factor
+				print("Annealing learning rate to {}".format(model.config.lr))
 
 			if epoch - best_epoch > model.config.early_stopping: ## Stop on no improvement
 				print('Stopping due to early stopping')
 				break;
-
-	print()
-	print("#"*20)
-	print('Completed Training')
-	print('Training Time:{} minutes'.format((time.time()-start_time)/60))
 
 	# plt.plot(np.mean(train_loss_history , axis=0) , linewidth=3 , label='Train')
 	# plt.plot(np.mean(val_loss_history , axis=0) , linewidth=3 , label='Val')
@@ -117,25 +111,47 @@ def train_model(filename):
 	# plt.legend()
 	# plt.savefig('Training_graph.png' , format='png')
 
-def test_model(filename):
-
-	test_data = pd.read_csv(filename)
-	test_idx = test_data.iloc[:,0].values
+def test_model(test=False):
 
 	config = Config()
-	model = Model(config , filename , test=True) ## Builds our model
+	model = Model(config , 'train.csv' , debug=False)
+
+	start_time = time.time()
+
+	train_model(model) ## Save the weights and model
+
+	print()
+	print("#"*20)
+	print('Completed Training')
+	print('Training Time:{} minutes'.format((time.time()-start_time)/60))
+
+	if not test:
+		return
+
+	test_data = pd.read_csv('test.csv')
+	X_test = test_data['comment_text'].values
+	test_idx = test_data.iloc[:,0].values
+
+	model.config.batch_size = len(X_test)
 
 	with tf.Session() as sess:
 		saver = tf.train.import_meta_graph('./weights/%s.meta'%model.config.model_name)
 		saver.restore(sess , './weights/%s'%model.config.model_name)
 
-		X_test , test_seq_length = get_batches(model.X_test, y=None, batch_size=1)
-		feed = model.build_feeddict(X_test , test_seq_length)
-		predictions = sess.run([model.pred] , feed_dict=feed)
+		X_test , test_seq_length = get_batches(X=X_test, y=None, batch_size=model.config.batch_size , shuffle=False)
+		e_pred = []
+		for X , seq in zip(X_test , test_seq_length): ## Run test in batches
+			feed = model.build_feeddict(X , seq)
+			prediction = sess.run(model.pred , feed_dict=feed)
 
-	assert(len(test_idx) == len(predictions))
+	# predictions = np.concatenate(e_pred , axis=0)
+	assert(len(test_idx) == len(prediction))
 
 	## Code to write the output submissions to a file
+
+	submit_df = pd.DataFrame({'id':test_idx , 'toxic':prediction[:,0], 'severe_toxic':prediction[:,1], 'obscene':prediction[:,2], 'threat':prediction[:,3], 'insult':prediction[:,4] , 'identity_hate':prediction[:,5]})
+	submit_df.to_csv('submission.csv',index=False,columns=['id','toxic','severe_toxic','obscene','threat','insult','identity_hate'])
+
 
 if __name__ == "__main__":
 
@@ -145,5 +161,4 @@ if __name__ == "__main__":
 	# Model = getattr(module , 'RNNModel')
 	# model = Model(config=config , datafile='train.csv')
 
-	train_model(filename = 'train.csv') ## Save the weights and model
-	# test_model(filename = 'test.csv') ## Load the model and test
+	test_model(test=False) ## Load the model and test

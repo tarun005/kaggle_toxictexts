@@ -6,8 +6,9 @@ import itertools
 import os , sys , time
 from data_utils import Vocab
 from data_utils import get_words
+from BaseModel import Basic
 
-class RNNModel():
+class RNNModel(Basic):
 
 	def load_data(self , datafile):
 
@@ -17,10 +18,6 @@ class RNNModel():
 			
 		text = 'comment_text'
 		self.X = dataset[text].values
-
-		if self.test_mode:
-			self.X_test = self.X
-			return
 		
 		labels = ['toxic', 'severe_toxic', 'obscene' , 'threat', 'insult', 'identity_hate']
 		assert(len(labels) == self.config.label_size)
@@ -32,6 +29,7 @@ class RNNModel():
 		train_sents = [get_words(line) for line in self.X_train]
 		self.vocab.construct(list(itertools.chain.from_iterable(train_sents)) , threshold=self.config.min_word_freq)
 		print('Training on {} samples and validating on {} samples'.format(len(self.X_train) , len(self.X_val)))
+		print()
 
 	def define_weights(self):
 		embed_size = self.config.embed_size
@@ -49,7 +47,6 @@ class RNNModel():
 			self.wo_l2loss = tf.nn.l2_loss(W_o)
 
 		## Define the placeholders
-		self.rnn_size_placeholder = tf.placeholder(tf.int32)
 		self.input_placeholder = tf.placeholder(tf.int32 , [None , None])
 		self.label_placeholder = tf.placeholder(tf.float32 , [None , label_size])
 		self.sequence_length_placeholder = tf.placeholder(tf.int32 , [None])
@@ -65,7 +62,7 @@ class RNNModel():
 		input_vectors = tf.nn.embedding_lookup(embedding , self.input_placeholder)
 		return input_vectors
 
-	def LSTM_module(self , input_tensor):
+	def core_module(self , input_tensor):
 
 		state_tuple = tf.contrib.rnn.LSTMStateTuple(self.cellstate_placeholder , self.hiddenstate_placeholder)
 		LSTMcell = tf.contrib.rnn.BasicLSTMCell (num_units = self.config.hidden_size , state_is_tuple=True)
@@ -101,16 +98,15 @@ class RNNModel():
 	def training_operation(self , loss):
 		self.train_op = tf.train.AdamOptimizer(learning_rate=self.config.lr).minimize(loss)
 
-	def __init__(self , config , datafile , debug=False, test=False):
+	def __init__(self , config , datafile , debug=False):
 		self.config = config
 		if debug:
 			self.config.max_epochs = 1
 		self.debug = debug
-		self.test_mode = test
 		self.load_data(datafile)
-		self.define_weights()
+		self.define_weights() 
 		input_tensor = self.input_embeddings()
-		output = self.LSTM_module(input_tensor)
+		output = self.core_module(input_tensor)
 		self.loss = self.calculate_loss(output)
 		self.training_operation(self.loss)
 
@@ -135,13 +131,14 @@ class RNNModel():
 
 		batch_word_len = X_input.shape[1]
 
-		feed = {self.rnn_size_placeholder : batch_word_len,
-				self.input_placeholder : X_input,
+		feed = {self.input_placeholder : X_input,
 				self.sequence_length_placeholder : seq_len_input,
-				self.label_placeholder : y_input,
 				self.cellstate_placeholder : np.zeros([self.config.batch_size , self.config.hidden_size]),
 				self.hiddenstate_placeholder : np.zeros([self.config.batch_size , self.config.hidden_size]),
 				}
+
+		if y is not None:
+			feed[self.label_placeholder] = y_input
 
 		return feed
 
