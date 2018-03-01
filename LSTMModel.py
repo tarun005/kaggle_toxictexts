@@ -19,7 +19,8 @@ class RNNModel(Basic):
 		text = 'comment_text'
 		self.X = dataset[text].values
 		
-		labels = ['toxic', 'severe_toxic', 'obscene' , 'threat', 'insult', 'identity_hate']
+		#labels = ['toxic', 'severe_toxic', 'obscene' , 'threat', 'insult', 'identity_hate']
+		labels = ['toxic']
 		assert(len(labels) == self.config.label_size)
 		self.y = dataset[labels].values
 		self.X_train , self.X_val , self.y_train , self.y_val = train_test_split(self.X , self.y, test_size=0.1, random_state=1234)

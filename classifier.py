@@ -68,7 +68,7 @@ def train_model(model):
 		# tf.logging.set_verbosity(tf.logging.ERROR)
 
 		for epoch in range(model.config.max_epochs):
-
+			print('Epoch: ' , epoch)
 			X_train , seq_len_train , y_train = get_batches(model.X_train , model.y_train, model.config.batch_size)
 			epoch_train_loss, epoch_train_acc = run_epoch(sess , model , zip(X_train,seq_len_train,y_train))
 			print()
@@ -90,6 +90,7 @@ def train_model(model):
 			val_loss = np.mean(epoch_val_loss)
 
 			if val_loss < best_val_loss:
+				best_val_acc = np.mean(epoch_val_acc)
 				best_val_loss = val_loss
 				best_epoch = epoch
 				saver = tf.train.Saver()
@@ -102,6 +103,8 @@ def train_model(model):
 			if epoch - best_epoch > model.config.early_stopping: ## Stop on no improvement
 				print('Stopping due to early stopping')
 				break;
+
+	print('Best Validation Accuracy is {}'.format(best_val_acc))
 
 	# plt.plot(np.mean(train_loss_history , axis=0) , linewidth=3 , label='Train')
 	# plt.plot(np.mean(val_loss_history , axis=0) , linewidth=3 , label='Val')
@@ -132,7 +135,7 @@ def test_model(test=False):
 	X_test = test_data['comment_text'].values
 	test_idx = test_data.iloc[:,0].values
 
-	model.config.batch_size = len(X_test)
+	model.config.batch_size = 59*59
 
 	with tf.Session() as sess:
 		saver = tf.train.import_meta_graph('./weights/%s.meta'%model.config.model_name)

@@ -1,6 +1,7 @@
 from collections import defaultdict
 import re
 import numpy as np
+from sklearn.metrics import roc_auc_score
 
 unknown_string = 'UNNKKK'
 
@@ -137,26 +138,29 @@ def get_batches(X, y=None , batch_size=1 ,shuffle=True, augment_method='pad' , c
 
 def accuracy(labels , predictions , classwise=True):
 
+	roc_auc = []
+	for col in range(labels.shape[1]):
+		roc_auc.append(roc_auc_score(labels[:,col] , predictions[:,col]))
+
+	roc_auc = np.round(roc_auc , 4)
 	if classwise:
-		class_wise_acc = np.mean(np.equal(labels , predictions) , axis=0, keepdims=True)
-		return class_wise_acc
+		return roc_auc
 	else:
-		acc = np.mean(np.equal(labels , predictions))
-		return acc
+		return np.mean(roc_auc)
 
 
 class Config():
 
 	min_word_freq = 5 ## Words with freq less than this are omitted from the vocabulary
-	embed_size = 50
-	hidden_size = 100
-	label_size = 6
+	embed_size = 100
+	hidden_size = 150
+	label_size = 1
 	max_epochs = 30
-	batch_size = 128
+	batch_size = 64
 	early_stopping = 5
 	anneal_threshold = 3
 	annealing_factor = 0.5
-	lr = 5e-4
+	lr = 1e-3
 	l2 = 0.001
 
 	model_name = 'model_RNN.weights'
