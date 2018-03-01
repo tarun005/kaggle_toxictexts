@@ -23,6 +23,7 @@ class RNNModel():
 			return
 		
 		labels = ['toxic', 'severe_toxic', 'obscene' , 'threat', 'insult', 'identity_hate']
+		assert(len(labels) == self.config.label_size)
 		self.y = dataset[labels].values
 		self.X_train , self.X_val , self.y_train , self.y_val = train_test_split(self.X , self.y, test_size=0.1, random_state=1234)
 
@@ -30,6 +31,7 @@ class RNNModel():
 		self.vocab = Vocab()
 		train_sents = [get_words(line) for line in self.X_train]
 		self.vocab.construct(list(itertools.chain.from_iterable(train_sents)) , threshold=self.config.min_word_freq)
+		print('Training on {} samples and validating on {} samples'.format(len(self.X_train) , len(self.X_val)))
 
 	def define_weights(self):
 		embed_size = self.config.embed_size
@@ -85,7 +87,7 @@ class RNNModel():
 
 		log_sigmoid = lambda X : -tf.nn.softplus(-1*X) ## Inbuilt in newer tensorflow versions
 
-		log_loss = tf.reduce_mean(tf.multiply(labels , log_sigmoid(output)) +
+		log_loss = -1*tf.reduce_mean(tf.multiply(labels , log_sigmoid(output)) +
 												 tf.multiply((1-labels) , log_sigmoid(-1*output)))
 		l2_loss = 0
 		for weights in tf.trainable_variables():
@@ -112,7 +114,7 @@ class RNNModel():
 		self.loss = self.calculate_loss(output)
 		self.training_operation(self.loss)
 
-		self.pred = tf.cast(tf.greater(tf.nn.sigmoid(output) , 0.5) , tf.int32)
+		self.pred = tf.cast(tf.greater(tf.nn.sigmoid(output) , 0.5) , tf.float32)
 
 	def build_feeddict(self, X, seq_len, y=None):
 

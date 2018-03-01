@@ -91,7 +91,7 @@ def get_batches(X, y=None , batch_size=1 , augment_method='pad' , common_size=10
 		seq_lengths.append([len(batch) for batch in batch_words])
 		modified_words = []
 
-		if augment_method == 'pad': ## Match the maximum
+		if augment_method == 'pad': ## Match the maximum; default; recommended
 			max_len = max([len(batch) for batch in batch_words])
 			modified_words = []
 			for batch in batch_words:
@@ -122,9 +122,19 @@ def get_batches(X, y=None , batch_size=1 , augment_method='pad' , common_size=10
 
 		X_data.append(modified_words)
 
-	if get_labels:
-		return X_data, seq_lengths , y_data
-	return X_data , seq_lengths
+	r_idx = np.random.permutation(np.arange(len(X_data)))
+	assert(len(X_data) == len(y_data))
+	assert(len(seq_lengths) == len(y_data))
+
+	X_data = [X_data[idx] for idx in r_idx]
+	seq_lengths = [seq_lengths[idx] for idx in r_idx]
+
+	if not get_labels:
+		return X_data , seq_lengths
+
+	y_data = [y_data[idx] for idx in r_idx]
+	return X_data, seq_lengths, y_data
+	
 
 
 def accuracy(labels , predictions , classwise=True):
@@ -141,8 +151,8 @@ class Config():
 
 	min_word_freq = 5 ## Words with freq less than this are omitted from the vocabulary
 	embed_size = 60
-	hidden_size = 100
-	label_size = 5
+	hidden_size = 64
+	label_size = 6
 	max_epochs = 30
 	batch_size = 32
 	early_stopping = 5

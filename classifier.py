@@ -1,73 +1,63 @@
+import os
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
+
 import tensorflow as tf
 import numpy as np
 import pandas as pd
-from sklearn.model_selection import train_test_split
-import itertools
-import os , time
+import sys, time
 from LSTMModel import RNNModel as Model
 from data_utils import get_batches, get_words, Config, accuracy
 from data_utils import Vocab
 import importlib
+import matplotlib.pyplot as plt
 
-def run_epoch(sess , model, verbose=True):
+def run_epoch(sess , model, iter_obj, val=False, verbose=True):
 
-	epoch_train_pred = []
-	epoch_train_label = []
-	epoch_train_loss = []
-
-	epoch_val_pred = []
-	epoch_val_label = []
-	epoch_val_loss = []
+	epoch_pred = []
+	epoch_label = []
+	epoch_loss = []
 
 	step = 0
 
-	for train_X, train_seq_len, train_y in get_batches(model.X_train , model.y_train, model.config.batch_size):
-		feed = model.build_feeddict(train_X , train_seq_len, train_y) 
-		class_pred , batch_loss , _ = sess.run([model.pred , model.loss, model.train_op] , feed_dict=feed)
-		epoch_train_pred.append(class_pred)
-		epoch_train_label.append(train_y)
-		epoch_train_loss.append(batch_loss)
+	for X, seq_len, y in iter_obj:
+		feed = model.build_feeddict(X , seq_len, y)
+		if val:
+			class_pred , batch_loss = sess.run([model.pred , model.loss] , feed_dict=feed)
+		else:
+			class_pred , batch_loss , _ = sess.run([model.pred , model.loss, model.train_op] , feed_dict=feed)
 
-		if verbose:
-			sys.stdout.write('\r{} / {} :    loss = {}'.format(step*self.config.batch_size, len(model.X_train), np.mean(epoch_train_loss)))
-			sys.stdout.flush()
+		epoch_pred.append(class_pred)
+		epoch_label.append(y)
+		epoch_loss.append(batch_loss)
 
 		step += 1
-
-	for val_X , val_seq_len, val_y in get_batches(model.X_val, model.y_val, model.config.batch_size):
-		feed = model.build_feeddict(val_X , val_seq_len, val_y)
-		val_preds , val_loss = sess.run([model.pred , model.loss] , feed_dict=feed)
-		epoch_val_pred.append(val_preds)
-		epoch_val_label.append(val_y)
-		epoch_val_loss.append(val_loss)
+		if verbose and not val:
+			sys.stdout.write('\r{} / {} :    loss = {}'.format(step*model.config.batch_size, 
+																		len(model.X_train), np.mean(epoch_loss)))
+			sys.stdout.flush()
 
 
-	train_predictions = np.concatenate(epoch_train_pred , axis=0)
-	train_labels = np.concatenate(epoch_train_label , axis=0)
-	train_acc = accuracy(labels , predictions) 
+	predictions = np.concatenate(epoch_pred , axis=0)
+	labels = np.concatenate(epoch_label , axis=0)
+	acc = accuracy(labels , predictions)
 
-	val_predictions = np.concatenate(epoch_val_pred , axis=0)
-	val_labels = np.concatenate(epoch_val_label , axis=0)
-	val_acc = accuracy(labels , predictions) 
-
-	print()
-	print("Train Loss: {} \t Train Accuracy: {}".format(np.mean(epoch_train_loss) , train_acc))
-	print("Val Loss: {} \t Val Accuracy: {}".format(np.mean(epoch_val_loss) , val_acc))
-
-	return epoch_train_loss, epoch_val_loss, train_acc , val_acc
+	return epoch_loss, acc
 
 def train_model(filename):
 
 	start_time = time.time()
 
 	config = Config()
-	model = Model(config , filename , debug=True)
+	model = Model(config , filename , debug=False)
 
-	num_batches = int(len(model.X_train)/model.config.batch_size)
-	train_loss_history = np.zeros((model.config.max_epochs , num_batches))
-	val_loss_history = np.zeros_like(train_loss_history)
-	train_acc_history = np.zeros((model.config.max_epochs , model.config.label_size))
-	val_acc_history = np.zeros_like(train_acc_history)
+	train_num_batches = int(len(model.X_train)/model.config.batch_size)
+	train_loss_history = np.zeros((model.config.max_epochs , train_num_batches)) ## Store each batch separately.
+	
+	val_num_batches = int(len(model.X_val)/model.config.batch_size)
+	val_loss_history = np.zeros((model.config.max_epochs , val_num_batches))
+	
+	train_acc_history = np.zeros((model.config.max_epochs , model.config.label_size)) ## Store each class separately
+	val_acc_history = np.zeros_like(train_acc_history) 
 
 	best_val_loss = np.float(np.inf)
 	best_epoch = 0
@@ -79,10 +69,21 @@ def train_model(filename):
 
 		init = tf.global_variables_initializer()
 		sess.run(init)
+		# tf.logging.set_verbosity(tf.logging.ERROR)
 
 		for epoch in range(model.config.max_epochs):
 
-			epoch_train_loss, epoch_val_loss, epoch_train_acc, epoch_val_acc = run_epoch(sess , model)
+			X_train , seq_len_train , y_train = get_batches(model.X_train , model.y_train, model.config.batch_size)
+			epoch_train_loss, epoch_train_acc = run_epoch(sess , model , zip(X_train,seq_len_train,y_train))
+			print()
+			print("Train Loss: {:.4f} \t Train Accuracy: {}".format(np.mean(epoch_train_loss) , epoch_train_acc))
+
+
+			X_val , seq_len_val , y_val = get_batches(model.X_val , model.y_val, model.config.batch_size)
+			epoch_val_loss, epoch_val_acc = run_epoch(sess , model , zip(X_val,seq_len_val,y_val) , val=True)
+			print("Val Loss: {:.4f} \t Val Accuracy: {}".format(np.mean(epoch_val_loss) , epoch_val_acc))
+			print()
+
 			train_acc_history[epoch , :] = epoch_train_acc
 			val_acc_history[epoch , :] = epoch_val_acc
 			train_loss_history[epoch , :] = np.array(epoch_train_loss)
@@ -108,13 +109,13 @@ def train_model(filename):
 	print('Completed Training')
 	print('Training Time:{} minutes'.format((time.time()-start_time)/60))
 
-	plt.plot(np.mean(train_loss_history , axis=0) , linewidth=3 , label='Train')
-	plt.plot(np.mean(val_loss_history , axis=0) , linewidth=3 , label='Val')
-	plt.xlabel("Epoch Number")
-	plt.ylabel("Loss")
-	plt.title("Loss vs Epoch")
-	plt.legend()
-	plt.savefig('Training_graph.png' , format='png')
+	# plt.plot(np.mean(train_loss_history , axis=0) , linewidth=3 , label='Train')
+	# plt.plot(np.mean(val_loss_history , axis=0) , linewidth=3 , label='Val')
+	# plt.xlabel("Epoch Number")
+	# plt.ylabel("Loss")
+	# plt.title("Loss vs Epoch")
+	# plt.legend()
+	# plt.savefig('Training_graph.png' , format='png')
 
 def test_model(filename):
 
