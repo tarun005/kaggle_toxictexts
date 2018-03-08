@@ -6,6 +6,7 @@ import itertools
 import os , sys , time
 from data_utils import Vocab
 from data_utils import get_words
+from BaseModel import BaseModel
 
 class Config():
 
@@ -19,34 +20,12 @@ class Config():
 	early_stopping = 5
 	anneal_threshold = 3
 	annealing_factor = 0.5
-	lr = 1e-4
+	lr = 3e-4
 	l2 = 0.001
 
 	model_name = 'model_RNN.weights'
 
-class RNNModel():
-
-	def load_data(self , datafile):
-
-		dataset = pd.read_csv(datafile)
-		if self.debug:
-			dataset = dataset.iloc[:1000]
-			
-		text = 'comment_text'
-		self.X = dataset[text].values
-		
-		labels = ['toxic', 'severe_toxic', 'obscene' , 'threat', 'insult', 'identity_hate']
-		# labels = ['severe_toxic']
-		assert(len(labels) == self.config.label_size)
-		self.y = dataset[labels].values
-		self.X_train , self.X_val , self.y_train , self.y_val = train_test_split(self.X , self.y, test_size=0.1, random_state=1234)
-
-		## Build the vocabulary using the train data.
-		self.vocab = Vocab()
-		train_sents = [get_words(line) for line in self.X_train]
-		self.vocab.construct(list(itertools.chain.from_iterable(train_sents)) , threshold=self.config.min_word_freq)
-		print('Training on {} samples and validating on {} samples'.format(len(self.X_train) , len(self.X_val)))
-		print()
+class AVGModel(BaseModel):
 
 	def define_weights(self):
 		embed_size = self.config.embed_size
@@ -75,16 +54,9 @@ class RNNModel():
 		self.input_placeholder = tf.placeholder(tf.int32 , [None , None])
 		self.label_placeholder = tf.placeholder(tf.float32 , [None , label_size])
 
-	def input_embeddings(self):
-
-		with tf.variable_scope("Embeddings" , reuse=True):
-			embedding = tf.get_variable("Embeds")
-
-		input_vectors = tf.nn.embedding_lookup(embedding , self.input_placeholder)
-
-		return tf.reduce_mean(input_vectors , axis=1)
-
 	def core_module(self , input_tensor):
+
+		input_tensor = tf.reduce_mean(input_tensor , axis=1, keep_dims=False)
 
 		with tf.variable_scope("Neural" ,reuse=True):
 			W_1 = tf.get_variable("Weight_1")
@@ -104,24 +76,6 @@ class RNNModel():
 
 		return output
 
-	def calculate_loss(self , output):
-
-		labels = self.label_placeholder
-
-		log_loss = tf.nn.sigmoid_cross_entropy_with_logits(logits=output , labels=labels)
-
-		l2_loss = 0
-		for weights in tf.trainable_variables():
-			if ("Bias" not in weights.name) and ("Embeddings" not in weights.name): 
-				l2_loss += (self.config.l2 * tf.nn.l2_loss(weights))
-
-		loss = log_loss + l2_loss
-
-		return loss
-
-	def training_operation(self , loss):
-		self.train_op = tf.train.AdamOptimizer(learning_rate=self.config.lr).minimize(loss)
-
 	def __init__(self , config , datafile , debug=False):
 		self.config = config
 		if debug:
@@ -132,9 +86,8 @@ class RNNModel():
 		input_tensor = self.input_embeddings()
 		output = self.core_module(input_tensor)
 		self.loss = self.calculate_loss(output)
-		self.training_operation(self.loss)
-
-		self.pred = tf.cast(tf.greater(tf.nn.sigmoid(output) , 0.5) , tf.float32)
+		self.train_op = self.training_operation(self.loss)
+		self.pred = tf.nn.sigmoid(output)
 
 	def build_feeddict(self, X, seq_len=None, y=None):
 

@@ -7,7 +7,7 @@ unknown_string = 'UNNKKK'
 
 def get_words(line):
 	line = line.lower()
-	return re.split('\W+|_' , line) ## Return ONLY words. Split the sentence by anything which isn't a word
+	return re.split('\s+|_' , line) ## Return ONLY words.
 
 class Vocab():
 
@@ -16,7 +16,7 @@ class Vocab():
 		self.word_to_idx = {}
 		self.idx_to_word = {}
 		self.word_freq = defaultdict(int)
-		self.total_words = 0 #float(sum(self.word_data.values()))
+		self.total_words = 0 
 		self.unknown = unknown_string
 		self.add_word(self.unknown , count=0)
 
@@ -65,7 +65,7 @@ class Vocab():
 		return len(self.word_to_idx)
 
 
-def get_batches(X, y=None , batch_size=1 ,shuffle=True, augment_method='pad' , common_size=10):
+def get_batches(X, y=None , batch_size=1 ,shuffle=True, augment_method='pad' , common_size=100):
 
 	num_batches = int(len(X)/batch_size)
 	augment_method = augment_method.lower()
@@ -92,7 +92,7 @@ def get_batches(X, y=None , batch_size=1 ,shuffle=True, augment_method='pad' , c
 		seq_lengths.append([len(batch) for batch in batch_words])
 		modified_words = []
 
-		if augment_method == 'pad': ## Match the maximum; default; recommended
+		if augment_method == 'pad': ## Match the maximum of batch; default.
 			max_len = max([len(batch) for batch in batch_words])
 			modified_words = []
 			for batch in batch_words:
