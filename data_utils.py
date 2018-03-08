@@ -148,23 +148,6 @@ def accuracy(labels , predictions , classwise=True):
 	else:
 		return np.mean(roc_auc)
 
-
-class Config():
-
-	min_word_freq = 5 ## Words with freq less than this are omitted from the vocabulary
-	embed_size = 100
-	hidden_size = 150
-	label_size = 1
-	max_epochs = 30
-	batch_size = 64
-	early_stopping = 5
-	anneal_threshold = 3
-	annealing_factor = 0.5
-	lr = 1e-3
-	l2 = 0.001
-
-	model_name = 'model_RNN.weights'
-
 if __name__ == "__main__":
 	print('Import libraries. Not to be run separately.')
 

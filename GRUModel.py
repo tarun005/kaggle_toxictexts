@@ -10,7 +10,7 @@ from data_utils import get_words
 class Config():
 
 	min_word_freq = 2 ## Words with freq less than this are omitted from the vocabulary
-	embed_size = 50
+	embed_size = 100
 	hidden_size = 150
 	label_size = 6
 	max_epochs = 30
@@ -66,8 +66,6 @@ class RNNModel():
 		self.input_placeholder = tf.placeholder(tf.int32 , [None , None])
 		self.label_placeholder = tf.placeholder(tf.float32 , [None , label_size])
 		self.sequence_length_placeholder = tf.placeholder(tf.int32 , [None])
-
-		self.cellstate_placeholder = tf.placeholder(tf.float32 , [None , hidden_size])
 		self.hiddenstate_placeholder = tf.placeholder(tf.float32 , [None , hidden_size])
 
 	def input_embeddings(self):
@@ -80,11 +78,9 @@ class RNNModel():
 
 	def core_module(self , input_tensor):
 
-		state_tuple = tf.contrib.rnn.LSTMStateTuple(self.cellstate_placeholder , self.hiddenstate_placeholder)
-		LSTMcell = tf.contrib.rnn.BasicLSTMCell (num_units = self.config.hidden_size , state_is_tuple=True)
-		last_state = tf.nn.dynamic_rnn(LSTMcell , input_tensor , sequence_length=self.sequence_length_placeholder,	
-														  		initial_state=state_tuple)[1]
-		last_cellstate , last_hiddenstate = last_state
+		GRUcell = tf.contrib.rnn.tf.contrib.rnn.GRUCell(num_units = self.config.hidden_size)
+		last_hiddenstate = tf.nn.dynamic_rnn(GRUcell , input_tensor , sequence_length=self.sequence_length_placeholder,	
+														  		initial_state=self.hiddenstate_placeholder)[1]
 
 		with tf.variable_scope("Output" , reuse=True):
 			W_o = tf.get_variable("Weight")
@@ -98,7 +94,7 @@ class RNNModel():
 
 		labels = self.label_placeholder
 
-		log_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=output , labels=labels))
+		log_loss = tf.nn.sigmoid_cross_entropy_with_logits(logits=output , labels=labels)
 
 		l2_loss = 0
 		for weights in tf.trainable_variables():

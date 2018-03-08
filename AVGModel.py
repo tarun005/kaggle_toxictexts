@@ -10,15 +10,16 @@ from data_utils import get_words
 class Config():
 
 	min_word_freq = 2 ## Words with freq less than this are omitted from the vocabulary
-	embed_size = 50
-	hidden_size = 150
+	embed_size = 100
+	hidden_size_1 = 512
+	hidden_size_2 = 256
 	label_size = 6
 	max_epochs = 30
 	batch_size = 64
 	early_stopping = 5
 	anneal_threshold = 3
 	annealing_factor = 0.5
-	lr = 1e-3
+	lr = 1e-4
 	l2 = 0.001
 
 	model_name = 'model_RNN.weights'
@@ -49,7 +50,8 @@ class RNNModel():
 
 	def define_weights(self):
 		embed_size = self.config.embed_size
-		hidden_size = self.config.hidden_size
+		hidden_size_1 = self.config.hidden_size_1
+		hidden_size_2 = self.config.hidden_size_2
 		label_size = self.config.label_size
 		vocab_size = len(self.vocab)
 
@@ -57,18 +59,21 @@ class RNNModel():
 		with tf.variable_scope("Embeddings" , initializer = tf.contrib.layers.xavier_initializer()) as scope:
 			embedding = tf.get_variable("Embeds" , shape=[vocab_size , embed_size])
 
+		with tf.variable_scope("Neural" , initializer = tf.contrib.layers.xavier_initializer()) as scope:
+			W_1 = tf.get_variable("Weight_1" , [embed_size , hidden_size_1])
+			b_1 = tf.get_variable("Bias_1" , [hidden_size_1])
+
+			W_2 = tf.get_variable("Weight_2" , [hidden_size_1 , hidden_size_2])
+			b_2 = tf.get_variable("Bias_2" , [hidden_size_2])
+
 		with tf.variable_scope("Output" , initializer = tf.contrib.layers.xavier_initializer()) as scope:
-			W_o = tf.get_variable("Weight" , [hidden_size , label_size])
+			W_o = tf.get_variable("Weight" , [hidden_size_2 , label_size])
 			b_o = tf.get_variable("Bias" , [label_size])
 			self.wo_l2loss = tf.nn.l2_loss(W_o)
 
 		## Define the placeholders
 		self.input_placeholder = tf.placeholder(tf.int32 , [None , None])
 		self.label_placeholder = tf.placeholder(tf.float32 , [None , label_size])
-		self.sequence_length_placeholder = tf.placeholder(tf.int32 , [None])
-
-		self.cellstate_placeholder = tf.placeholder(tf.float32 , [None , hidden_size])
-		self.hiddenstate_placeholder = tf.placeholder(tf.float32 , [None , hidden_size])
 
 	def input_embeddings(self):
 
@@ -76,21 +81,26 @@ class RNNModel():
 			embedding = tf.get_variable("Embeds")
 
 		input_vectors = tf.nn.embedding_lookup(embedding , self.input_placeholder)
-		return input_vectors
+
+		return tf.reduce_mean(input_vectors , axis=1)
 
 	def core_module(self , input_tensor):
 
-		state_tuple = tf.contrib.rnn.LSTMStateTuple(self.cellstate_placeholder , self.hiddenstate_placeholder)
-		LSTMcell = tf.contrib.rnn.BasicLSTMCell (num_units = self.config.hidden_size , state_is_tuple=True)
-		last_state = tf.nn.dynamic_rnn(LSTMcell , input_tensor , sequence_length=self.sequence_length_placeholder,	
-														  		initial_state=state_tuple)[1]
-		last_cellstate , last_hiddenstate = last_state
+		with tf.variable_scope("Neural" ,reuse=True):
+			W_1 = tf.get_variable("Weight_1")
+			b_1 = tf.get_variable("Bias_1" )
 
+			W_2 = tf.get_variable("Weight_2")
+			b_2 = tf.get_variable("Bias_2")
+
+		hidden_layer_1 = tf.nn.relu(tf.matmul(input_tensor , W_1) + b_1)
+		hidden_layer_2 = tf.nn.relu(tf.matmul(hidden_layer_1 , W_2) + b_2)
+		
 		with tf.variable_scope("Output" , reuse=True):
 			W_o = tf.get_variable("Weight")
 			b_o = tf.get_variable("Bias")
 
-			output = tf.matmul(last_hiddenstate , W_o) + b_o
+			output = tf.matmul(hidden_layer_2 , W_o) + b_o
 
 		return output
 
@@ -98,7 +108,7 @@ class RNNModel():
 
 		labels = self.label_placeholder
 
-		log_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=output , labels=labels))
+		log_loss = tf.nn.sigmoid_cross_entropy_with_logits(logits=output , labels=labels)
 
 		l2_loss = 0
 		for weights in tf.trainable_variables():
@@ -126,7 +136,7 @@ class RNNModel():
 
 		self.pred = tf.cast(tf.greater(tf.nn.sigmoid(output) , 0.5) , tf.float32)
 
-	def build_feeddict(self, X, seq_len, y=None):
+	def build_feeddict(self, X, seq_len=None, y=None):
 
 		X_input = []
 
@@ -137,19 +147,11 @@ class RNNModel():
 			X_input.append(sent_tokens)
 
 		X_input = np.array(X_input)
-		assert(X_input.shape[0] == self.config.batch_size)
-
 		y_input = y
-		seq_len_input = np.reshape(np.array(seq_len) , [-1])
-		assert(len(seq_len_input) == self.config.batch_size)
 
 		batch_word_len = X_input.shape[1]
 
-		feed = {self.input_placeholder : X_input,
-				self.sequence_length_placeholder : seq_len_input,
-				self.cellstate_placeholder : np.zeros([self.config.batch_size , self.config.hidden_size]),
-				self.hiddenstate_placeholder : np.zeros([self.config.batch_size , self.config.hidden_size]),
-				}
+		feed = {self.input_placeholder : X_input}
 
 		if y is not None:
 			feed[self.label_placeholder] = y_input

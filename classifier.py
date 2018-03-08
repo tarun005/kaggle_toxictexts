@@ -5,8 +5,8 @@ import tensorflow as tf
 import numpy as np
 import pandas as pd
 import sys, time
-from LSTMModel import RNNModel as Model
-from data_utils import get_batches, get_words, Config, accuracy
+from LSTMModel import RNNModel as Model , Config
+from data_utils import get_batches, get_words, accuracy
 from data_utils import Vocab
 import importlib
 import matplotlib.pyplot as plt
@@ -145,9 +145,10 @@ def test_model(test=False):
 		e_pred = []
 		for X , seq in zip(X_test , test_seq_length): ## Run test in batches
 			feed = model.build_feeddict(X , seq)
-			prediction = sess.run(model.pred , feed_dict=feed)
+			p = sess.run(model.pred , feed_dict=feed)
+			e_pred.append(p)
 
-	# predictions = np.concatenate(e_pred , axis=0)
+	prediction = np.concatenate(e_pred , axis=0)
 	assert(len(test_idx) == len(prediction))
 
 	## Code to write the output submissions to a file
@@ -164,4 +165,4 @@ if __name__ == "__main__":
 	# Model = getattr(module , 'RNNModel')
 	# model = Model(config=config , datafile='train.csv')
 
-	test_model(test=False) ## Load the model and test
+	test_model(test=True) ## Load the model and test
