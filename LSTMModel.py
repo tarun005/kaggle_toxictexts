@@ -10,12 +10,12 @@ from BaseModel import BaseModel
 
 class Config():
 
-	min_word_freq = 5 ## Words with freq less than this are omitted from the vocabulary
-	embed_size = 50
+	min_word_freq = 2 ## Words with freq less than this are omitted from the vocabulary
+	embed_size = 100
 	hidden_size = 128
-	hidden_size_output = 128
+	hidden_size_output = 32
 	label_size = 6
-	max_epochs = 30
+	max_epochs = 8
 	batch_size = 64
 	early_stopping = 5
 	anneal_threshold = 3
@@ -35,9 +35,6 @@ class LSTMModel(BaseModel):
 		hidden_size_output = self.config.hidden_size_output
 
 		## Declare weights and placeholders
-		with tf.variable_scope("Embeddings") as scope:
-			embedding = tf.get_variable("Embeds" , shape=[vocab_size , embed_size] ,
-								 initializer=tf.random_uniform([vocab_size , embed_size] , -0.005,0.005) )
 
 		with tf.variable_scope("Output" , initializer = tf.contrib.layers.xavier_initializer()) as scope:
 			W_1 = tf.get_variable("Weight-1", [2*hidden_size , hidden_size_output])

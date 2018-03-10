@@ -30,15 +30,29 @@ class BaseModel():
 		print('Training on {} samples and validating on {} samples'.format(len(self.X_train) , len(self.X_val)))
 		print()
 
-	def define_weights(self):
+		## Populate embedding matrix from pre-trained word embeddings
+		pretrained_index = {}
+		with open('glove.twitter.27B.100d.txt') as fh:
+			for line in fh:
+				word_vec = line.strip().split()
+				word = word_vec[0]
+				vector = np.asarray(word_vec[1:] , dtype='float32')
+				pretrained_index[word] = vector
 
-		## Declare weights and placeholders
-		with tf.variable_scope("Embeddings" , initializer = tf.contrib.layers.xavier_initializer()) as scope:
-			embedding = tf.get_variable("Embeds" , shape=[1,1])
+		pw = 0.0
 
-		## Define the placeholders
-		self.input_placeholder = tf.placeholder(tf.int32 , [None , None])
-		self.label_placeholder = tf.placeholder(tf.float32 , [None , label_size])
+		self.embedding_matrix = np.random.uniform(-0.005 , 0.005 , size=[len(self.vocab) , self.config.embed_size]).astype('float32')
+		for word , idx in self.vocab.word_to_idx.items():
+			pretrained_vector = pretrained_index.get(word)
+			if pretrained_vector is not None:
+				self.embedding_matrix[idx] = pretrained_vector[:self.config.embed_size]
+				pw+=1
+
+		print("Found pretrained vectors for {}%% of data".format(pw/len(self.vocab)*100))
+
+		with tf.variable_scope("Embeddings") as scope:
+			embedding = tf.get_variable("Embeds" , initializer=self.embedding_matrix , dtype=tf.float32)
+
 
 	def input_embeddings(self):
 

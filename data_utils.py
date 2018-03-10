@@ -7,7 +7,7 @@ unknown_string = 'UNNKKKORRW'
 
 def get_words(line):
 	line = line.lower()
-	return re.split('\W+|_' , line) ## Return ONLY words.
+	return re.split('\s+|_|\.+|-+' , line) ## Return ONLY words.
 
 class Vocab():
 

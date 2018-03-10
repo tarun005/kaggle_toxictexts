@@ -3,16 +3,16 @@ from LSTMModel import LSTMModel
 
 class Config():
 
-	min_word_freq = 2 ## Words with freq less than this are omitted from the vocabulary
+	min_word_freq = 1 ## Words with freq less than this are omitted from the vocabulary
 	embed_size = 100
-	hidden_size = 150
+	hidden_size = 100
 	label_size = 6
-	max_epochs = 30
-	batch_size = 128
+	max_epochs = 7
+	batch_size = 32
 	early_stopping = 5
 	anneal_threshold = 3
 	annealing_factor = 0.5
-	lr = 1e-3
+	lr = 5e-4
 	l2 = 0.00
 
 	model_name = 'model_RNN.weights'
@@ -26,8 +26,6 @@ class GRUModel(LSTMModel):
 		vocab_size = len(self.vocab)
 
 		## Declare weights and placeholders
-		with tf.variable_scope("Embeddings") as scope:
-			embedding = tf.get_variable("Embeds", initializer=tf.random_uniform([vocab_size , embed_size] , -0.005,0.005) )
 
 		with tf.variable_scope("Output" , initializer = tf.contrib.layers.xavier_initializer()) as scope:
 			W_o = tf.get_variable("Weight" , [2*hidden_size , label_size])
@@ -58,7 +56,7 @@ class GRUModel(LSTMModel):
 			W_o = tf.get_variable("Weight")
 			b_o = tf.get_variable("Bias")
 
-			output = tf.matmul(last_hiddenstate , W_o) + b_o
+			output = tf.nn.xw_plus_b(last_hiddenstate , W_o , b_o)
 
 		return output
 
