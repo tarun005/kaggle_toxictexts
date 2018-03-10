@@ -4,15 +4,15 @@ from LSTMModel import LSTMModel
 class Config():
 
 	min_word_freq = 1 ## Words with freq less than this are omitted from the vocabulary
-	embed_size = 100
+	embed_size = 200
 	hidden_size = 100
 	label_size = 6
-	max_epochs = 7
+	max_epochs = 5
 	batch_size = 32
 	early_stopping = 5
 	anneal_threshold = 3
 	annealing_factor = 0.5
-	lr = 5e-4
+	lr = 1e-3
 	l2 = 0.00
 
 	model_name = 'model_RNN.weights'
@@ -47,8 +47,8 @@ class GRUModel(LSTMModel):
 
 		GRUcell_rev = tf.contrib.rnn.GRUCell(num_units = self.config.hidden_size)
 		input_rev = tf.reverse(input_tensor , axis=[1])
-		last_hiddenstate_rev = tf.nn.dynamic_rnn(GRUcell_rev , input_rev ,	
-														  		initial_state=self.hiddenstate_placeholder , scope="rev")[1]
+		last_hiddenstate_rev = tf.nn.dynamic_rnn(GRUcell_rev , input_rev, 
+																initial_state=self.hiddenstate_placeholder , scope="rev")[1]
 		last_hiddenstate = tf.concat([last_hiddenstate_fwd , last_hiddenstate_rev] , axis=1)
 
 

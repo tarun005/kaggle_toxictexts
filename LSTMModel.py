@@ -11,12 +11,12 @@ from BaseModel import BaseModel
 class Config():
 
 	min_word_freq = 2 ## Words with freq less than this are omitted from the vocabulary
-	embed_size = 100
-	hidden_size = 128
-	hidden_size_output = 32
+	embed_size = 200
+	hidden_size = 100
+	hidden_size_output = 64
 	label_size = 6
 	max_epochs = 8
-	batch_size = 64
+	batch_size = 128
 	early_stopping = 5
 	anneal_threshold = 3
 	annealing_factor = 0.5
@@ -38,9 +38,9 @@ class LSTMModel(BaseModel):
 
 		with tf.variable_scope("Output" , initializer = tf.contrib.layers.xavier_initializer()) as scope:
 			W_1 = tf.get_variable("Weight-1", [2*hidden_size , hidden_size_output])
-			b_1 = tf.get_variable("Bias-1" , [hidden_size_output])
+			b_1 = tf.get_variable("Bias-1" , [hidden_size_output] , initializer=tf.zeros_initializer)
 			W_o = tf.get_variable("Weight" , [hidden_size_output , label_size])
-			b_o = tf.get_variable("Bias" , [label_size])
+			b_o = tf.get_variable("Bias" , [label_size] , initializer=tf.zeros_initializer)
 
 		## Define the placeholders
 		self.input_placeholder = tf.placeholder(tf.int32 , [None , None])
@@ -53,29 +53,24 @@ class LSTMModel(BaseModel):
 	def core_module(self , input_tensor):
 
 		seq_len = self.sequence_length_placeholder
-
 		state_tuple = tf.contrib.rnn.LSTMStateTuple(self.cellstate_placeholder , self.hiddenstate_placeholder)
-		LSTMcell_fwd = tf.contrib.rnn.BasicLSTMCell (num_units = self.config.hidden_size , state_is_tuple=True)
+
+		LSTMcell_fwd = tf.contrib.rnn.LayerNormBasicLSTMCell(num_units = self.config.hidden_size)
 		last_state_fwd = tf.nn.dynamic_rnn(LSTMcell_fwd , input_tensor ,sequence_length=seq_len, initial_state=state_tuple , scope="Forward")[1]
 		last_cellstate_fwd , last_hiddenstate_fwd = last_state_fwd
 
-		LSTMcell_rev = tf.contrib.rnn.BasicLSTMCell (num_units = self.config.hidden_size , state_is_tuple=True)
+		LSTMcell_rev = tf.contrib.rnn.LayerNormBasicLSTMCell(num_units = self.config.hidden_size)
 		reverse_input = tf.reverse(input_tensor , axis=[1])
 		last_state_rev = tf.nn.dynamic_rnn(LSTMcell_rev , reverse_input, initial_state=state_tuple , scope="Backward")[1]
 		last_cellstate_rev , last_hiddenstate_rev = last_state_rev
 
 		last_hiddenstate = tf.concat([last_hiddenstate_fwd , last_hiddenstate_rev] , axis=1)
-		# last_hiddenstate = last_hiddenstate_fwd
 
 		with tf.variable_scope("Output" , reuse=True):
-			W_1 = tf.get_variable("Weight-1")
-			b_1 = tf.get_variable("Bias-1")
 			W_o = tf.get_variable("Weight")
 			b_o = tf.get_variable("Bias")
 
-			hidden_state_1 = tf.matmul(last_hiddenstate , W_1) + b_1
-
-			output = tf.matmul(hidden_state_1 , W_o) + b_o
+		output = tf.matmul(last_hiddenstate , W_o) + b_o
 
 		return output
 
@@ -93,7 +88,7 @@ class LSTMModel(BaseModel):
 
 		self.pred = tf.nn.sigmoid(output)
 
-	def build_feeddict(self, X, seq_len, y=None):
+	def build_feeddict(self, X, seq_len, y=None, val=False):
 
 		X_input = []
 

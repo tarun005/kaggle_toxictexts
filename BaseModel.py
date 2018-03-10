@@ -32,7 +32,7 @@ class BaseModel():
 
 		## Populate embedding matrix from pre-trained word embeddings
 		pretrained_index = {}
-		with open('glove.twitter.27B.100d.txt') as fh:
+		with open('glove.twitter.27B.200d.txt') as fh:
 			for line in fh:
 				word_vec = line.strip().split()
 				word = word_vec[0]
@@ -48,7 +48,7 @@ class BaseModel():
 				self.embedding_matrix[idx] = pretrained_vector[:self.config.embed_size]
 				pw+=1
 
-		print("Found pretrained vectors for {}%% of data".format(pw/len(self.vocab)*100))
+		print("Found pretrained vectors for {}% of data".format(pw/len(self.vocab)*100))
 
 		with tf.variable_scope("Embeddings") as scope:
 			embedding = tf.get_variable("Embeds" , initializer=self.embedding_matrix , dtype=tf.float32)

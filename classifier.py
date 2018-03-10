@@ -20,7 +20,7 @@ def run_epoch(sess , model, iter_obj, val=False, verbose=True):
 	step = 0
 
 	for X, seq_len, y in iter_obj:
-		feed = model.build_feeddict(X , seq_len, y)
+		feed = model.build_feeddict(X , seq_len, y, val=val)
 		if val:
 			class_pred , batch_loss = sess.run([model.pred , model.loss] , feed_dict=feed)
 		else:
@@ -145,7 +145,7 @@ def test_model(test=False):
 		X_test , test_seq_length = get_batches(X=X_test, y=None, batch_size=model.config.batch_size , shuffle=False)
 		e_pred = []
 		for X , seq in zip(X_test , test_seq_length): ## Run test in batches
-			feed = model.build_feeddict(X , seq)
+			feed = model.build_feeddict(X , seq, val=True)
 			p = sess.run(model.pred , feed_dict=feed)
 			e_pred.append(p)
 
