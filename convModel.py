@@ -17,7 +17,7 @@ class Config():
 	num_filters = 128
 	label_size = 6
 	max_epochs = 12
-	batch_size = 64
+	batch_size = 128
 
 	early_stopping = 5
 	anneal_threshold = 3
@@ -27,11 +27,11 @@ class Config():
 
 	model_name = 'model_RNN.weights'
 
-class RNNModel(BaseModel):
+class convModel(BaseModel):
 
 	def define_weights(self):
 		self.input_placeholder = tf.placeholder(tf.int32 , [None , None])
-		self.label_placeholder = tf.placeholder(tf.float32 , [None , label_size])
+		self.label_placeholder = tf.placeholder(tf.float32 , [None , self.config.label_size])
 		self.dropout_placeholder = tf.placeholder(tf.float32 )
 
 	def core_module(self , input_tensor):
@@ -39,19 +39,22 @@ class RNNModel(BaseModel):
 		embed_size = self.config.embed_size
 		hidden_layer_size = self.config.hidden_layer_size
 		label_size = self.config.label_size
+		filter_sizes = self.config.filter_sizes
+		num_filters = self.config.num_filters
 
 		total_pooled_op = []
+		input_tensor = tf.expand_dims(input_tensor , axis=-1)
 
-		for filter_size in self.config.filter_sizes:
-			input_tensor = tf.expand_dims(input_tensor , axis=-1)
+		for i,filter_size in enumerate(filter_sizes):
 
-			with tf.variable_scope("conv_layer_%s"%filter_size) as scope:
-				W = tf.get_variable("Weight" , shape=[filter_size , self.config.embed_size, 1, self.config.num_filters])
+			with tf.variable_scope("conv_layer_%s"%i) as scope:
+				W = tf.get_variable("Weight" , shape=[filter_size , embed_size, 1, num_filters])
 				bias = tf.get_variable("Bias" , shape=[num_filters])
 
 				conv_op = tf.nn.conv2d(input_tensor , W, strides=[1,1,1,1], padding="VALID")
 				filter_op = tf.nn.relu(tf.nn.bias_add(conv_op, bias))
 				pool_op = tf.squeeze(tf.reduce_max(filter_op , axis=1))
+				# assert(tf.shape(pool_op).as_list()[1] == num_filters)
 				total_pooled_op.append(pool_op)
 
 		pool_op = tf.nn.dropout(tf.concat(total_pooled_op , axis=1) , keep_prob=self.dropout_placeholder)
@@ -67,6 +70,8 @@ class RNNModel(BaseModel):
 
 		fc_output = tf.nn.dropout(tf.nn.relu(tf.nn.xw_plus_b(pool_op , W_f , b_f)) , keep_prob=self.dropout_placeholder)
 		output = tf.nn.xw_plus_b(fc_output , W_o , b_o)
+
+		return output
 
 
 	def __init__(self , config , datafile , debug=False):

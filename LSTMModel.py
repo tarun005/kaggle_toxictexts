@@ -37,9 +37,9 @@ class LSTMModel(BaseModel):
 		## Declare weights and placeholders
 
 		with tf.variable_scope("Output" , initializer = tf.contrib.layers.xavier_initializer()) as scope:
-			W_1 = tf.get_variable("Weight-1", [2*hidden_size , hidden_size_output])
-			b_1 = tf.get_variable("Bias-1" , [hidden_size_output] , initializer=tf.zeros_initializer)
-			W_o = tf.get_variable("Weight" , [hidden_size_output , label_size])
+			# W_1 = tf.get_variable("Weight-1", [2*hidden_size , hidden_size_output])
+			# b_1 = tf.get_variable("Bias-1" , [hidden_size_output] , initializer=tf.zeros_initializer)
+			W_o = tf.get_variable("Weight" , [2*hidden_size , label_size])
 			b_o = tf.get_variable("Bias" , [label_size] , initializer=tf.zeros_initializer)
 
 		## Define the placeholders
