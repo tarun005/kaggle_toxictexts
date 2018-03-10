@@ -10,17 +10,18 @@ from BaseModel import BaseModel
 
 class Config():
 
-	min_word_freq = 3 ## Words with freq less than this are omitted from the vocabulary
+	min_word_freq = 5 ## Words with freq less than this are omitted from the vocabulary
 	embed_size = 50
-	hidden_size = 80
+	hidden_size = 128
+	hidden_size_output = 128
 	label_size = 6
 	max_epochs = 30
-	batch_size = 128
+	batch_size = 64
 	early_stopping = 5
 	anneal_threshold = 3
 	annealing_factor = 0.5
-	lr = 5e-4
-	l2 = 0.001
+	lr = 1e-3
+	l2 = 0.00
 
 	model_name = 'model_RNN.weights'
 
@@ -31,15 +32,18 @@ class LSTMModel(BaseModel):
 		hidden_size = self.config.hidden_size
 		label_size = self.config.label_size
 		vocab_size = len(self.vocab)
+		hidden_size_output = self.config.hidden_size_output
 
 		## Declare weights and placeholders
-		with tf.variable_scope("Embeddings" , initializer = tf.contrib.layers.xavier_initializer()) as scope:
-			embedding = tf.get_variable("Embeds" , shape=[vocab_size , embed_size])
+		with tf.variable_scope("Embeddings") as scope:
+			embedding = tf.get_variable("Embeds" , shape=[vocab_size , embed_size] ,
+								 initializer=tf.random_uniform([vocab_size , embed_size] , -0.005,0.005) )
 
 		with tf.variable_scope("Output" , initializer = tf.contrib.layers.xavier_initializer()) as scope:
-			W_o = tf.get_variable("Weight" , [2*hidden_size , label_size])
+			W_1 = tf.get_variable("Weight-1", [2*hidden_size , hidden_size_output])
+			b_1 = tf.get_variable("Bias-1" , [hidden_size_output])
+			W_o = tf.get_variable("Weight" , [hidden_size_output , label_size])
 			b_o = tf.get_variable("Bias" , [label_size])
-			self.wo_l2loss = tf.nn.l2_loss(W_o)
 
 		## Define the placeholders
 		self.input_placeholder = tf.placeholder(tf.int32 , [None , None])
@@ -51,9 +55,11 @@ class LSTMModel(BaseModel):
 
 	def core_module(self , input_tensor):
 
+		seq_len = self.sequence_length_placeholder
+
 		state_tuple = tf.contrib.rnn.LSTMStateTuple(self.cellstate_placeholder , self.hiddenstate_placeholder)
 		LSTMcell_fwd = tf.contrib.rnn.BasicLSTMCell (num_units = self.config.hidden_size , state_is_tuple=True)
-		last_state_fwd = tf.nn.dynamic_rnn(LSTMcell_fwd , input_tensor , initial_state=state_tuple , scope="Forward")[1]
+		last_state_fwd = tf.nn.dynamic_rnn(LSTMcell_fwd , input_tensor ,sequence_length=seq_len, initial_state=state_tuple , scope="Forward")[1]
 		last_cellstate_fwd , last_hiddenstate_fwd = last_state_fwd
 
 		LSTMcell_rev = tf.contrib.rnn.BasicLSTMCell (num_units = self.config.hidden_size , state_is_tuple=True)
@@ -62,12 +68,17 @@ class LSTMModel(BaseModel):
 		last_cellstate_rev , last_hiddenstate_rev = last_state_rev
 
 		last_hiddenstate = tf.concat([last_hiddenstate_fwd , last_hiddenstate_rev] , axis=1)
+		# last_hiddenstate = last_hiddenstate_fwd
 
 		with tf.variable_scope("Output" , reuse=True):
+			W_1 = tf.get_variable("Weight-1")
+			b_1 = tf.get_variable("Bias-1")
 			W_o = tf.get_variable("Weight")
 			b_o = tf.get_variable("Bias")
 
-			output = tf.matmul(last_hiddenstate , W_o) + b_o
+			hidden_state_1 = tf.matmul(last_hiddenstate , W_1) + b_1
+
+			output = tf.matmul(hidden_state_1 , W_o) + b_o
 
 		return output
 

@@ -5,7 +5,7 @@ import tensorflow as tf
 import numpy as np
 import pandas as pd
 import sys, time
-from LSTMModel import LSTMModel as Model , Config
+from GRUModel import GRUModel as Model , Config
 from data_utils import get_batches, get_words, accuracy
 from data_utils import Vocab
 import importlib
@@ -55,7 +55,7 @@ def train_model(model):
 	train_acc_history = np.zeros((model.config.max_epochs , model.config.label_size)) ## Store each class separately
 	val_acc_history = np.zeros_like(train_acc_history) 
 
-	best_val_loss = np.float(np.inf)
+	best_val_acc = 0
 	best_epoch = 0
 
 	if not os.path.exists("./weights"):
@@ -65,20 +65,19 @@ def train_model(model):
 
 		init = tf.global_variables_initializer()
 		sess.run(init)
-		# tf.logging.set_verbosity(tf.logging.ERROR)
 
 		for epoch in range(model.config.max_epochs):
 			print('Epoch: ' , epoch)
 			X_train , seq_len_train , y_train = get_batches(model.X_train , model.y_train, model.config.batch_size)
 			epoch_train_loss, epoch_train_acc = run_epoch(sess , model , zip(X_train,seq_len_train,y_train))
 			print()
-			print("Train Loss: {:.4f} \t Train Accuracy: {} \t Mean Acc: {:.5f}".format(np.mean(epoch_train_loss) ,
+			print("Train Loss: {:.4f} \t Train Accuracy: {} \t Mean AUC: {:.5f}".format(np.mean(epoch_train_loss) ,
 																			 epoch_train_acc, np.mean(epoch_train_acc)))
 
 
 			X_val , seq_len_val , y_val = get_batches(model.X_val , model.y_val, model.config.val_batchsize)
 			epoch_val_loss, epoch_val_acc = run_epoch(sess , model , zip(X_val,seq_len_val,y_val) , val=True)
-			print("Val Loss: {:.4f} \t Val Accuracy: {} \t Mean Acc: {:.5f}".format(np.mean(epoch_val_loss) , 
+			print("Val Loss: {:.4f} \t Val Accuracy: {} \t Mean AUC: {:.5f}".format(np.mean(epoch_val_loss) , 
 																			epoch_val_acc, np.mean(epoch_val_acc)))
 			print()
 
@@ -89,20 +88,20 @@ def train_model(model):
 
 			val_loss = np.mean(epoch_val_loss)
 
-			if val_loss < best_val_loss:
-				best_val_acc = np.mean(epoch_val_acc)
+			if np.mean(epoch_val_acc) > best_val_acc:
 				best_val_loss = val_loss
 				best_epoch = epoch
+				best_val_acc = np.mean(epoch_val_acc)
 				saver = tf.train.Saver()
 				saver.save(sess , './weights/%s'%model.config.model_name)
-
-			if epoch - best_epoch > model.config.anneal_threshold: ## Anneal lr on no improvement in val loss
-				model.config.lr *= model.config.annealing_factor
-				print("Annealing learning rate to {}".format(model.config.lr))
 
 			if epoch - best_epoch > model.config.early_stopping: ## Stop on no improvement
 				print('Stopping due to early stopping')
 				break;
+
+			if epoch - best_epoch > model.config.anneal_threshold: ## Anneal lr on no improvement in val loss
+				model.config.lr *= model.config.annealing_factor
+				print("Annealing learning rate to {}".format(model.config.lr))
 
 	print('Best Validation Accuracy is {}'.format(best_val_acc))
 
@@ -134,6 +133,8 @@ def test_model(test=False):
 	test_data = pd.read_csv('test.csv')
 	X_test = test_data['comment_text'].values
 	test_idx = test_data.iloc[:,0].values
+
+	print("Generating test results ...")
 
 	model.config.batch_size = 59*59
 

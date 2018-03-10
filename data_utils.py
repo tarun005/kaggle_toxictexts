@@ -3,11 +3,11 @@ import re
 import numpy as np
 from sklearn.metrics import roc_auc_score
 
-unknown_string = 'UNNKKK'
+unknown_string = 'UNNKKKORRW'
 
 def get_words(line):
 	line = line.lower()
-	return re.split('\s+|_' , line) ## Return ONLY words.
+	return re.split('\W+|_' , line) ## Return ONLY words.
 
 class Vocab():
 
@@ -27,7 +27,7 @@ class Vocab():
 			self.idx_to_word[index] = word
 		self.word_freq[word] += count
 
-	def construct(self, words_list ,threshold=5, replace_digits=True):
+	def construct(self, words_list ,threshold=5, replace_digits=False):
 		for word in words_list:
 			if any([c.isdigit() for c in word]) and replace_digits:
 				word = self.unknown
@@ -73,9 +73,10 @@ def get_batches(X, y=None , batch_size=1 ,shuffle=True, augment_method='pad' , c
 	get_labels = False if y is None else True
 
 	# Sort the entries in data with length of sentences to reduce computation time.
-	sort_idx = [val[0] for val in sorted(enumerate(X) , key = lambda K : len(get_words(K[1])))]
-	X = X[sort_idx]
-	y = y[sort_idx] if get_labels else None
+	if shuffle:
+		sort_idx = [val[0] for val in sorted(enumerate(X) , key = lambda K : len(get_words(K[1])))]
+		X = X[sort_idx]
+		y = y[sort_idx] if get_labels else None
 
 	X_data = []
 	y_data = []
@@ -125,16 +126,14 @@ def get_batches(X, y=None , batch_size=1 ,shuffle=True, augment_method='pad' , c
 
 	r_idx = np.random.permutation(np.arange(len(X_data))) if shuffle else np.arange(len(X_data))
 
-	assert(len(X_data) == len(seq_lengths))
-
 	X_data = [X_data[idx] for idx in r_idx]
 	seq_lengths = [seq_lengths[idx] for idx in r_idx]
+	y_data = [y_data[idx] for idx in r_idx] if get_labels else None
 
-	if not get_labels:
-		return X_data , seq_lengths
+	if get_labels:
+		return X_data, seq_lengths, y_data
 
-	y_data = [y_data[idx] for idx in r_idx]
-	return X_data, seq_lengths, y_data
+	return X_data, seq_lengths
 
 def accuracy(labels , predictions , classwise=True):
 

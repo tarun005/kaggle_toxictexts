@@ -12,7 +12,7 @@ class BaseModel():
 
 		dataset = pd.read_csv(datafile)
 		if self.debug:
-			dataset = dataset.iloc[:1000]
+			dataset = dataset.iloc[:3000]
 			
 		text = 'comment_text'
 		self.X = dataset[text].values

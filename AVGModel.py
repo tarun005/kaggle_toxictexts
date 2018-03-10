@@ -15,7 +15,7 @@ class Config():
 	hidden_size_1 = 512
 	hidden_size_2 = 256
 	label_size = 6
-	max_epochs = 30
+	max_epochs = 10
 	batch_size = 64
 	early_stopping = 5
 	anneal_threshold = 3
@@ -40,14 +40,14 @@ class AVGModel(BaseModel):
 
 		with tf.variable_scope("Neural" , initializer = tf.contrib.layers.xavier_initializer()) as scope:
 			W_1 = tf.get_variable("Weight_1" , [embed_size , hidden_size_1])
-			b_1 = tf.get_variable("Bias_1" , [hidden_size_1])
+			b_1 = tf.get_variable("Bias_1" , [hidden_size_1], initializer=tf.zeros_initializer)
 
 			W_2 = tf.get_variable("Weight_2" , [hidden_size_1 , hidden_size_2])
-			b_2 = tf.get_variable("Bias_2" , [hidden_size_2])
+			b_2 = tf.get_variable("Bias_2" , [hidden_size_2], initializer=tf.zeros_initializer)
 
 		with tf.variable_scope("Output" , initializer = tf.contrib.layers.xavier_initializer()) as scope:
 			W_o = tf.get_variable("Weight" , [hidden_size_2 , label_size])
-			b_o = tf.get_variable("Bias" , [label_size])
+			b_o = tf.get_variable("Bias" , [label_size] , initializer=tf.zeros_initializer)
 			self.wo_l2loss = tf.nn.l2_loss(W_o)
 
 		## Define the placeholders
