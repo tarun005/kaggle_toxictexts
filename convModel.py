@@ -10,19 +10,19 @@ from BaseModel import BaseModel
 
 class Config():
 
-	min_word_freq = 3 ## Words with freq less than this are omitted from the vocabulary
+	min_word_freq = 4 ## Words with freq less than this are omitted from the vocabulary
 	embed_size = 100
-	hidden_layer_size = 64
-	filter_sizes = [3,4,5]
-	num_filters = 128
+	hidden_layer_size = 128
+	filter_sizes = [3,4,5,6]
+	num_filters = 150
 	label_size = 6
 	max_epochs = 12
-	batch_size = 128
+	batch_size = 64
 
 	early_stopping = 5
 	anneal_threshold = 3
 	annealing_factor = 0.5
-	lr = 5e-4
+	lr = 1e-3
 	l2 = 0.001
 
 	model_name = 'model_RNN.weights'
@@ -33,6 +33,7 @@ class convModel(BaseModel):
 		self.input_placeholder = tf.placeholder(tf.int32 , [None , None])
 		self.label_placeholder = tf.placeholder(tf.float32 , [None , self.config.label_size])
 		self.dropout_placeholder = tf.placeholder(tf.float32 )
+		self.sequence_length_placeholder = tf.placeholder(tf.int32 , [None])
 
 	def core_module(self , input_tensor):
 
@@ -44,17 +45,20 @@ class convModel(BaseModel):
 
 		total_pooled_op = []
 		input_tensor = tf.expand_dims(input_tensor , axis=-1)
+		max_len = tf.reduce_max(self.sequence_length_placeholder)
 
 		for i,filter_size in enumerate(filter_sizes):
 
-			with tf.variable_scope("conv_layer_%s"%i) as scope:
-				W = tf.get_variable("Weight" , shape=[filter_size , embed_size, 1, num_filters])
+			with tf.variable_scope("conv_maxpool_%s"%i) as scope:
+				W = tf.get_variable("Weight" , shape=[filter_size , embed_size, 1, num_filters] , initializer=tf.truncated_normal_initializer)
 				bias = tf.get_variable("Bias" , shape=[num_filters])
 
-				conv_op = tf.nn.conv2d(input_tensor , W, strides=[1,1,1,1], padding="VALID")
-				filter_op = tf.nn.relu(tf.nn.bias_add(conv_op, bias))
-				pool_op = tf.squeeze(tf.reduce_max(filter_op , axis=1))
-				# assert(tf.shape(pool_op).as_list()[1] == num_filters)
+				with tf.device("/gpu:0"):
+					conv_op = tf.nn.conv2d(input_tensor , W, strides=[1,1,1,1], padding="VALID")
+					filter_op = tf.nn.relu(tf.nn.bias_add(conv_op, bias))
+					pool_op = tf.squeeze(tf.reduce_max(filter_op , axis=1))
+				# assert(pool_op.get_shape().as_list()[1] == num_filters)
+# 
 				total_pooled_op.append(pool_op)
 
 		pool_op = tf.nn.dropout(tf.concat(total_pooled_op , axis=1) , keep_prob=self.dropout_placeholder)
@@ -68,8 +72,8 @@ class convModel(BaseModel):
 																	, initializer=tf.contrib.layers.xavier_initializer())
 			b_o = tf.get_variable("Bias_o" , shape=[label_size] , initializer=tf.zeros_initializer)
 
-		fc_output = tf.nn.dropout(tf.nn.relu(tf.nn.xw_plus_b(pool_op , W_f , b_f)) , keep_prob=self.dropout_placeholder)
-		output = tf.nn.xw_plus_b(fc_output , W_o , b_o)
+		# fc_output = tf.nn.dropout(tf.nn.relu(tf.nn.xw_plus_b(pool_op , W_f , b_f)) , keep_prob=self.dropout_placeholder)
+		output = tf.nn.xw_plus_b(pool_op , W_o , b_o)
 
 		return output
 
@@ -113,6 +117,3 @@ class convModel(BaseModel):
 			feed[self.label_placeholder] = y_input
 
 		return feed
-
-
-

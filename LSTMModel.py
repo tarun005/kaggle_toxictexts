@@ -10,13 +10,13 @@ from BaseModel import BaseModel
 
 class Config():
 
-	min_word_freq = 2 ## Words with freq less than this are omitted from the vocabulary
+	min_word_freq = 4 ## Words with freq less than this are omitted from the vocabulary
 	embed_size = 200
 	hidden_size = 100
 	hidden_size_output = 64
 	label_size = 6
 	max_epochs = 8
-	batch_size = 128
+	batch_size = 64
 	early_stopping = 5
 	anneal_threshold = 3
 	annealing_factor = 0.5
@@ -32,13 +32,10 @@ class LSTMModel(BaseModel):
 		hidden_size = self.config.hidden_size
 		label_size = self.config.label_size
 		vocab_size = len(self.vocab)
-		hidden_size_output = self.config.hidden_size_output
 
 		## Declare weights and placeholders
 
 		with tf.variable_scope("Output" , initializer = tf.contrib.layers.xavier_initializer()) as scope:
-			# W_1 = tf.get_variable("Weight-1", [2*hidden_size , hidden_size_output])
-			# b_1 = tf.get_variable("Bias-1" , [hidden_size_output] , initializer=tf.zeros_initializer)
 			W_o = tf.get_variable("Weight" , [2*hidden_size , label_size])
 			b_o = tf.get_variable("Bias" , [label_size] , initializer=tf.zeros_initializer)
 
@@ -56,13 +53,13 @@ class LSTMModel(BaseModel):
 		state_tuple = tf.contrib.rnn.LSTMStateTuple(self.cellstate_placeholder , self.hiddenstate_placeholder)
 
 		LSTMcell_fwd = tf.contrib.rnn.LayerNormBasicLSTMCell(num_units = self.config.hidden_size)
-		last_state_fwd = tf.nn.dynamic_rnn(LSTMcell_fwd , input_tensor ,sequence_length=seq_len, initial_state=state_tuple , scope="Forward")[1]
-		last_cellstate_fwd , last_hiddenstate_fwd = last_state_fwd
+		fwd_seq_list, _ = tf.nn.dynamic_rnn(LSTMcell_fwd , input_tensor ,sequence_length=seq_len, initial_state=state_tuple , scope="Forward")
+		last_hiddenstate_fwd = tf.reduce_mean(fwd_seq_list , axis=1 , keep_dims=False)
 
 		LSTMcell_rev = tf.contrib.rnn.LayerNormBasicLSTMCell(num_units = self.config.hidden_size)
 		reverse_input = tf.reverse(input_tensor , axis=[1])
-		last_state_rev = tf.nn.dynamic_rnn(LSTMcell_rev , reverse_input, initial_state=state_tuple , scope="Backward")[1]
-		last_cellstate_rev , last_hiddenstate_rev = last_state_rev
+		rev_seq_list , _ = tf.nn.dynamic_rnn(LSTMcell_rev , reverse_input, initial_state=state_tuple , scope="Backward")[1]
+		last_hiddenstate_rev = tf.reduce_mean(rev_seq_list , axis=1 , keep_dims=False)
 
 		last_hiddenstate = tf.concat([last_hiddenstate_fwd , last_hiddenstate_rev] , axis=1)
 

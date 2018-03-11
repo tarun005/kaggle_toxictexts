@@ -95,10 +95,13 @@ def get_batches(X, y=None , batch_size=1 ,shuffle=True, augment_method='pad' , c
 
 		if augment_method == 'pad': ## Match the maximum of batch; default.
 			max_len = max([len(batch) for batch in batch_words])
+			max_len = max(max_len , 6) ## For convolution to work, we need atleast sentence size of 5
 			modified_words = []
 			for batch in batch_words:
 				len_batch = len(batch)
 				all_words = batch + [unknown_string]*(max_len - len_batch)
+				if len(all_words) > 100:
+					all_words = all_words[:100]
 				modified_words.append(all_words)
 
 		elif augment_method == 'adjust': ## Adjust to a fixed length

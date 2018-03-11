@@ -5,7 +5,7 @@ import tensorflow as tf
 import numpy as np
 import pandas as pd
 import sys, time
-from GRUModel import GRUModel as Model , Config
+from LSTMModel import LSTMModel as Model , Config
 from data_utils import get_batches, get_words, accuracy
 from data_utils import Vocab
 import importlib
@@ -136,7 +136,7 @@ def test_model(test=False):
 
 	print("Generating test results ...")
 
-	model.config.batch_size = 59*59
+	model.config.batch_size = 59
 
 	with tf.Session() as sess:
 		saver = tf.train.import_meta_graph('./weights/%s.meta'%model.config.model_name)
