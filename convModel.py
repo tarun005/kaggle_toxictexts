@@ -14,7 +14,7 @@ class Config():
 	embed_size = 100
 	hidden_layer_size = 128
 	filter_sizes = [3,4,5,6]
-	num_filters = 150
+	num_filters = 128
 	label_size = 6
 	max_epochs = 12
 	batch_size = 64
@@ -53,12 +53,10 @@ class convModel(BaseModel):
 				W = tf.get_variable("Weight" , shape=[filter_size , embed_size, 1, num_filters] , initializer=tf.truncated_normal_initializer)
 				bias = tf.get_variable("Bias" , shape=[num_filters])
 
-				with tf.device("/gpu:0"):
-					conv_op = tf.nn.conv2d(input_tensor , W, strides=[1,1,1,1], padding="VALID")
-					filter_op = tf.nn.relu(tf.nn.bias_add(conv_op, bias))
-					pool_op = tf.squeeze(tf.reduce_max(filter_op , axis=1))
-				# assert(pool_op.get_shape().as_list()[1] == num_filters)
-# 
+				conv_op = tf.nn.conv2d(input_tensor , W, strides=[1,1,1,1], padding="VALID")
+				filter_op = tf.nn.relu(tf.nn.bias_add(conv_op, bias))
+				pool_op = tf.squeeze(tf.reduce_max(filter_op , axis=1))
+
 				total_pooled_op.append(pool_op)
 
 		pool_op = tf.nn.dropout(tf.concat(total_pooled_op , axis=1) , keep_prob=self.dropout_placeholder)

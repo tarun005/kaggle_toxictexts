@@ -27,9 +27,9 @@ class Vocab():
 			self.idx_to_word[index] = word
 		self.word_freq[word] += count
 
-	def construct(self, words_list ,threshold=5, replace_digits=False):
+	def construct(self, words_list ,threshold=5, replace_digits=True):
 		for word in words_list:
-			if any([c.isdigit() for c in word]) and replace_digits:
+			if all([c.isdigit() for c in word]) and replace_digits:
 				word = self.unknown
 			self.add_word(word)
 		self.total_words = sum(self.word_freq.values())
@@ -100,8 +100,8 @@ def get_batches(X, y=None , batch_size=1 ,shuffle=True, augment_method='pad' , c
 			for batch in batch_words:
 				len_batch = len(batch)
 				all_words = batch + [unknown_string]*(max_len - len_batch)
-				if len(all_words) > 100:
-					all_words = all_words[:100]
+				# if len(all_words) > 300:
+				# 	all_words = all_words[:300]
 				modified_words.append(all_words)
 
 		elif augment_method == 'adjust': ## Adjust to a fixed length

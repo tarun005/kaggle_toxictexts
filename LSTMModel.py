@@ -10,8 +10,8 @@ from BaseModel import BaseModel
 
 class Config():
 
-	min_word_freq = 4 ## Words with freq less than this are omitted from the vocabulary
-	embed_size = 200
+	min_word_freq = 0 ## Words with freq less than this are omitted from the vocabulary
+	embed_size = 100
 	hidden_size = 100
 	hidden_size_output = 64
 	label_size = 6
@@ -52,14 +52,14 @@ class LSTMModel(BaseModel):
 		seq_len = self.sequence_length_placeholder
 		state_tuple = tf.contrib.rnn.LSTMStateTuple(self.cellstate_placeholder , self.hiddenstate_placeholder)
 
-		LSTMcell_fwd = tf.contrib.rnn.LayerNormBasicLSTMCell(num_units = self.config.hidden_size)
+		LSTMcell_fwd = tf.contrib.rnn.BasicLSTMCell(num_units = self.config.hidden_size)
 		fwd_seq_list, _ = tf.nn.dynamic_rnn(LSTMcell_fwd , input_tensor ,sequence_length=seq_len, initial_state=state_tuple , scope="Forward")
-		last_hiddenstate_fwd = tf.reduce_mean(fwd_seq_list , axis=1 , keep_dims=False)
+		last_hiddenstate_fwd = tf.reduce_max(fwd_seq_list , axis=1 , keep_dims=False)
 
-		LSTMcell_rev = tf.contrib.rnn.LayerNormBasicLSTMCell(num_units = self.config.hidden_size)
+		LSTMcell_rev = tf.contrib.rnn.BasicLSTMCell(num_units = self.config.hidden_size)
 		reverse_input = tf.reverse(input_tensor , axis=[1])
-		rev_seq_list , _ = tf.nn.dynamic_rnn(LSTMcell_rev , reverse_input, initial_state=state_tuple , scope="Backward")[1]
-		last_hiddenstate_rev = tf.reduce_mean(rev_seq_list , axis=1 , keep_dims=False)
+		rev_seq_list , _ = tf.nn.dynamic_rnn(LSTMcell_rev , reverse_input, initial_state=state_tuple , scope="Backward")
+		last_hiddenstate_rev = tf.reduce_max(rev_seq_list , axis=1 , keep_dims=False)
 
 		last_hiddenstate = tf.concat([last_hiddenstate_fwd , last_hiddenstate_rev] , axis=1)
 
