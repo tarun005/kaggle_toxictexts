@@ -6,8 +6,8 @@ from sklearn.metrics import roc_auc_score
 unknown_string = 'UNNKKKORRW'
 
 def get_words(line):
-	line = line.lower()
-	return re.split('\W+|_' , line) ## Return ONLY words.
+	# line = line.lower()
+	return re.findall(r"[\w]+|[^\w\s]", line) ## Return ONLY words.
 
 class Vocab():
 
@@ -27,9 +27,9 @@ class Vocab():
 			self.idx_to_word[index] = word
 		self.word_freq[word] += count
 
-	def construct(self, words_list ,threshold=5, replace_digits=True):
+	def construct(self, words_list ,threshold=5, replace_digits=False):
 		for word in words_list:
-			if all([c.isdigit() for c in word]) and replace_digits:
+			if any([c.isdigit() for c in word]) and replace_digits:
 				word = self.unknown
 			self.add_word(word)
 		self.total_words = sum(self.word_freq.values())
@@ -95,7 +95,7 @@ def get_batches(X, y=None , batch_size=1 ,shuffle=True, augment_method='pad' , c
 
 		if augment_method == 'pad': ## Match the maximum of batch; default.
 			max_len = max([len(batch) for batch in batch_words])
-			max_len = max(max_len , 6) ## For convolution to work, we need atleast sentence size of 5
+			# max_len = max(max_len , 6) ## For convolution to work, we need atleast sentence size of 5
 			modified_words = []
 			for batch in batch_words:
 				len_batch = len(batch)

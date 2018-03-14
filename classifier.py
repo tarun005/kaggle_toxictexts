@@ -5,7 +5,7 @@ import tensorflow as tf
 import numpy as np
 import pandas as pd
 import sys, time
-from LSTMModel import LSTMModel as Model , Config
+from GRUModel import GRUModel as Model , Config
 from data_utils import get_batches, get_words, accuracy
 from data_utils import Vocab
 import importlib

@@ -11,19 +11,20 @@ from BaseModel import BaseModel
 class Config():
 
 	min_word_freq = 4 ## Words with freq less than this are omitted from the vocabulary
-	embed_size = 100
+	embed_size = 300
 	hidden_layer_size = 128
 	filter_sizes = [3,4,5,6]
-	num_filters = 128
+	num_filters = 512
 	label_size = 6
-	max_epochs = 12
+	max_epochs = 5
 	batch_size = 64
 
 	early_stopping = 5
 	anneal_threshold = 3
 	annealing_factor = 0.5
 	lr = 1e-3
-	l2 = 0.001
+	l2 = 0.00
+	dropout = 0.9
 
 	model_name = 'model_RNN.weights'
 
@@ -50,28 +51,28 @@ class convModel(BaseModel):
 		for i,filter_size in enumerate(filter_sizes):
 
 			with tf.variable_scope("conv_maxpool_%s"%i) as scope:
-				W = tf.get_variable("Weight" , shape=[filter_size , embed_size, 1, num_filters] , initializer=tf.truncated_normal_initializer)
+				W = tf.get_variable("Weight" , shape=[filter_size , embed_size, 1, num_filters] , initializer=tf.truncated_normal_initializer(0.0,0.005))
 				bias = tf.get_variable("Bias" , shape=[num_filters])
 
 				conv_op = tf.nn.conv2d(input_tensor , W, strides=[1,1,1,1], padding="VALID")
 				filter_op = tf.nn.relu(tf.nn.bias_add(conv_op, bias))
-				pool_op = tf.squeeze(tf.reduce_max(filter_op , axis=1))
+				pool_op_max = tf.squeeze(tf.reduce_max(filter_op , axis=1))
+				pool_op_mean = tf.squeeze(tf.reduce_mean(filter_op , axis=1))
+				pool_op = tf.concat([pool_op_max , pool_op_mean] , axis=1) ## Concat mean pool and max pool
 
 				total_pooled_op.append(pool_op)
 
 		pool_op = tf.nn.dropout(tf.concat(total_pooled_op , axis=1) , keep_prob=self.dropout_placeholder)
 
-		with tf.variable_scope("FC_Layer") as scope:
-			W_f = tf.get_variable("Weight" , shape=[num_filters*len(filter_sizes),hidden_layer_size] 
-																	, initializer=tf.contrib.layers.xavier_initializer())
-			b_f = tf.get_variable("Bias" , shape=[hidden_layer_size] , initializer=tf.zeros_initializer)
+		with tf.variable_scope("FC_Layer" , initializer = tf.truncated_normal_initializer(0.0,0.005) ) as scope:
+			W_f = tf.get_variable("Weight" , shape=[2*num_filters*len(filter_sizes),hidden_layer_size])
+			b_f = tf.get_variable("Bias" , shape=[hidden_layer_size])
 
-			W_o = tf.get_variable("Weight_o" , shape=[hidden_layer_size , label_size]
-																	, initializer=tf.contrib.layers.xavier_initializer())
-			b_o = tf.get_variable("Bias_o" , shape=[label_size] , initializer=tf.zeros_initializer)
+			W_o = tf.get_variable("Weight_o" , shape=[hidden_layer_size , label_size])
+			b_o = tf.get_variable("Bias_o" , shape=[label_size])
 
-		# fc_output = tf.nn.dropout(tf.nn.relu(tf.nn.xw_plus_b(pool_op , W_f , b_f)) , keep_prob=self.dropout_placeholder)
-		output = tf.nn.xw_plus_b(pool_op , W_o , b_o)
+		fc_output = tf.nn.dropout(tf.nn.relu(tf.nn.xw_plus_b(pool_op , W_f , b_f)) , keep_prob=self.dropout_placeholder)
+		output = tf.nn.xw_plus_b(fc_output , W_o , b_o)
 
 		return output
 
@@ -107,7 +108,7 @@ class convModel(BaseModel):
 		y_input = y
 
 		batch_word_len = X_input.shape[1]
-		dropout = 1 if val else 0.9
+		dropout = 1 if val else self.config.dropout
 
 		feed = {self.input_placeholder : X_input , self.dropout_placeholder : dropout}
 

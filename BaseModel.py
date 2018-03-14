@@ -21,7 +21,7 @@ class BaseModel():
 		# labels = ['severe_toxic']
 		assert(len(labels) == self.config.label_size)
 		self.y = dataset[labels].values
-		self.X_train , self.X_val , self.y_train , self.y_val = train_test_split(self.X , self.y, test_size=0.1, random_state=1234)
+		self.X_train , self.X_val , self.y_train , self.y_val = train_test_split(self.X , self.y, test_size=0.1, random_state=124)
 
 		## Build the vocabulary using the train data.
 		self.vocab = Vocab()
@@ -30,9 +30,16 @@ class BaseModel():
 		print('Training on {} samples and validating on {} samples'.format(len(self.X_train) , len(self.X_val)))
 		print()
 
+		self.embedding_matrix = np.random.uniform(-0.005 , 0.005 , size=[len(self.vocab) , self.config.embed_size]).astype('float32')
+		with tf.variable_scope("Embeddings") as scope:
+			embedding = tf.get_variable("Embeds" , initializer=self.embedding_matrix , dtype=tf.float32)
+			
+		if self.debug:
+			return
+
 		## Populate embedding matrix from pre-trained word embeddings
 		pretrained_index = {}
-		with open('glove.twitter.27B.100d.txt') as fh:
+		with open('./WordVectors/crawl-300d-2M.vec') as fh:
 			for line in fh:
 				word_vec = line.strip().split()
 				word = word_vec[0]
@@ -41,7 +48,7 @@ class BaseModel():
 
 		pw = 0.0
 
-		self.embedding_matrix = np.random.uniform(-0.005 , 0.005 , size=[len(self.vocab) , self.config.embed_size]).astype('float32')
+		
 		for word , idx in self.vocab.word_to_idx.items():
 			pretrained_vector = pretrained_index.get(word)
 			if pretrained_vector is not None:
@@ -49,9 +56,7 @@ class BaseModel():
 				pw+=1
 
 		print("Found pretrained vectors for {:.2f}% of data".format(pw/len(self.vocab)*100))
-
-		with tf.variable_scope("Embeddings") as scope:
-			embedding = tf.get_variable("Embeds" , initializer=self.embedding_matrix , dtype=tf.float32)
+		del pretrained_index ## Done only for memory constraint. Don't do this!!
 
 
 	def input_embeddings(self):
@@ -59,7 +64,7 @@ class BaseModel():
 		with tf.variable_scope("Embeddings" , reuse=True):
 			embedding = tf.get_variable("Embeds")
 
-		input_vectors = tf.nn.embedding_lookup(embedding , self.input_placeholder)
+		input_vectors = tf.nn.embedding_lookup(self.embedding_matrix , self.input_placeholder)
 		return input_vectors
 
 	def core_module(self):
@@ -82,7 +87,7 @@ class BaseModel():
 		return loss
 
 	def training_operation(self , loss):
-		return tf.train.GradientDescentOptimizer(learning_rate=self.config.lr).minimize(loss)
+		return tf.train.AdamOptimizer(learning_rate=self.config.lr).minimize(loss)
 
 	def build_feeddict(self):
 
